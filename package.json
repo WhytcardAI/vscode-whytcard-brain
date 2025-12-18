@@ -1,0 +1,561 @@
+{
+  "name": "whytcard-brain",
+  "displayName": "WhytCard Brain",
+  "description": "Local knowledge base for GitHub Copilot - Store instructions, documentation, and project context for AI-assisted development",
+  "version": "1.0.0",
+  "publisher": "whytcard",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whytcard/vscode-whytcard-brain"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other",
+    "AI",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "copilot",
+    "ai",
+    "knowledge-base",
+    "documentation",
+    "instructions",
+    "context"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:whytcard-brain.instructions",
+    "onView:whytcard-brain.documentation",
+    "onView:whytcard-brain.context",
+    "onView:whytcard-brain.stats",
+    "onCommand:whytcard-brain.search",
+    "onCommand:whytcard-brain.installCopilotInstructions",
+    "onChatParticipant:whytcard-brain.brain",
+    "onLanguageModelTool:whytcard-brain_getInstructions",
+    "onLanguageModelTool:whytcard-brain_getContext",
+    "onLanguageModelTool:whytcard-brain_searchDocs",
+    "onLanguageModelTool:whytcard-brain_consult",
+    "onLanguageModelTool:whytcard-brain_storeDoc",
+    "onLanguageModelTool:whytcard-brain_storePitfall",
+    "onLanguageModelTool:whytcard-brain_logSession"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "whytcard-brain.brain",
+        "name": "brain",
+        "fullName": "WhytCard Brain",
+        "description": "Search and manage your local Brain knowledge base",
+        "isSticky": true
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "whytcard-brain_consult",
+        "tags": [
+          "brain",
+          "instructions",
+          "context",
+          "documentation"
+        ],
+        "displayName": "Consult Brain",
+        "toolReferenceName": "brainConsult",
+        "modelDescription": "ALWAYS call this tool before responding to a user request. It loads mandatory instructions and project context from the local Brain database and searches relevant local documentation and known pitfalls for the given query, so you can answer using the user's native knowledge base.",
+        "userDescription": "Load instructions + context + local docs in one call",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(brain)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query (e.g., 'nextjs async params', 'tailwind dark mode')"
+            },
+            "library": {
+              "type": "string",
+              "description": "Filter by library (optional): nextjs, react, tailwind, typescript, etc."
+            },
+            "category": {
+              "type": "string",
+              "description": "Filter docs by category (optional)",
+              "enum": [
+                "instruction",
+                "documentation",
+                "project"
+              ]
+            },
+            "projectPath": {
+              "type": "string",
+              "description": "Project path (optional)"
+            },
+            "includeInstructions": {
+              "type": "boolean",
+              "description": "Include instructions (default true)"
+            },
+            "includeContext": {
+              "type": "boolean",
+              "description": "Include project context (default true)"
+            },
+            "maxDocs": {
+              "type": "number",
+              "description": "Maximum number of docs to include (1-10, default 5)"
+            },
+            "maxPitfalls": {
+              "type": "number",
+              "description": "Maximum number of pitfalls to include (0-10, default 3)"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "whytcard-brain_getInstructions",
+        "tags": [
+          "instructions",
+          "rules",
+          "brain"
+        ],
+        "displayName": "Load Instructions",
+        "toolReferenceName": "brainInstructions",
+        "modelDescription": "Retrieves ALL instructions and rules to follow. Use this tool at the start of complex tasks to know project conventions and rules. Instructions are MANDATORY.",
+        "userDescription": "Load all mandatory instructions",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(law)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "whytcard-brain_getContext",
+        "tags": [
+          "context",
+          "project",
+          "brain"
+        ],
+        "displayName": "Load Project Context",
+        "toolReferenceName": "brainContext",
+        "modelDescription": "Retrieves current project context: architecture, stack, decisions made. Use this tool to understand the project before coding.",
+        "userDescription": "Load project context",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(project)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "projectPath": {
+              "type": "string",
+              "description": "Project path (optional)"
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "whytcard-brain_searchDocs",
+        "tags": [
+          "documentation",
+          "knowledge",
+          "brain"
+        ],
+        "displayName": "Search Documentation",
+        "toolReferenceName": "brain",
+        "modelDescription": "Use this tool BEFORE answering. Search the local Brain knowledge base for documentation, code examples, and solutions to known issues. If nothing is found, use web/docs tools and then store the new knowledge back into Brain.",
+        "userDescription": "Search your local knowledge base",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(book)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query (e.g., 'nextjs async params', 'react hooks', 'tailwind dark mode')"
+            },
+            "library": {
+              "type": "string",
+              "description": "Filter by library (optional): nextjs, react, tailwind, typescript, etc."
+            },
+            "category": {
+              "type": "string",
+              "description": "Filter by category (optional): 'instruction', 'documentation', 'project'",
+              "enum": [
+                "instruction",
+                "documentation",
+                "project"
+              ]
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "whytcard-brain_storeDoc",
+        "tags": [
+          "documentation",
+          "knowledge",
+          "brain",
+          "save"
+        ],
+        "displayName": "Store Documentation",
+        "toolReferenceName": "brainSave",
+        "modelDescription": "Stores new documentation in the local knowledge base. Use this tool AFTER finding useful information from Context7, Tavily, or other sources to save it locally.",
+        "userDescription": "Save documentation to local database",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(save)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "library": {
+              "type": "string",
+              "description": "Library name (e.g., nextjs, react, tailwind)"
+            },
+            "topic": {
+              "type": "string",
+              "description": "Topic (e.g., routing, hooks, styling)"
+            },
+            "title": {
+              "type": "string",
+              "description": "Documentation title"
+            },
+            "content": {
+              "type": "string",
+              "description": "Documentation content"
+            },
+            "url": {
+              "type": "string",
+              "description": "Source URL (optional)"
+            },
+            "category": {
+              "type": "string",
+              "description": "Documentation category (default: 'documentation')",
+              "enum": [
+                "instruction",
+                "documentation",
+                "project"
+              ]
+            }
+          },
+          "required": [
+            "library",
+            "topic",
+            "title",
+            "content"
+          ]
+        }
+      },
+      {
+        "name": "whytcard-brain_storePitfall",
+        "tags": [
+          "bugs",
+          "errors",
+          "pitfalls",
+          "brain"
+        ],
+        "displayName": "Store Pitfall",
+        "toolReferenceName": "brainBug",
+        "modelDescription": "Stores a known bug/error and its solution. Use this tool when you solve an error to avoid encountering it again.",
+        "userDescription": "Save a bug and its solution",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(warning)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "symptom": {
+              "type": "string",
+              "description": "Problem description"
+            },
+            "solution": {
+              "type": "string",
+              "description": "How to solve the problem"
+            },
+            "error": {
+              "type": "string",
+              "description": "Error message (optional)"
+            },
+            "library": {
+              "type": "string",
+              "description": "Related library (optional)"
+            },
+            "code": {
+              "type": "string",
+              "description": "Fix code (optional)"
+            }
+          },
+          "required": [
+            "symptom",
+            "solution"
+          ]
+        }
+      },
+      {
+        "name": "whytcard-brain_logSession",
+        "tags": [
+          "session",
+          "context",
+          "planning",
+          "brain"
+        ],
+        "displayName": "Log Session",
+        "toolReferenceName": "brainSession",
+        "modelDescription": "Records a summary of the current work session. Use this tool at the end of a conversation to save what was done, decisions made, and next steps. Content is added to existing project context.",
+        "userDescription": "Save this session summary",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(history)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string",
+              "description": "Project name (e.g., my-app, whytcard-brain)"
+            },
+            "summary": {
+              "type": "string",
+              "description": "Summary of what was done in this session"
+            },
+            "decisions": {
+              "type": "string",
+              "description": "Technical decisions made (optional)"
+            },
+            "nextSteps": {
+              "type": "string",
+              "description": "Planned next steps (optional)"
+            }
+          },
+          "required": [
+            "project",
+            "summary"
+          ]
+        }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "whytcard-brain",
+          "title": "Brain",
+          "icon": "media/brain.svg"
+        }
+      ]
+    },
+    "views": {
+      "whytcard-brain": [
+        {
+          "id": "whytcard-brain.instructions",
+          "name": "Instructions"
+        },
+        {
+          "id": "whytcard-brain.documentation",
+          "name": "Documentation"
+        },
+        {
+          "id": "whytcard-brain.context",
+          "name": "Context"
+        },
+        {
+          "id": "whytcard-brain.stats",
+          "name": "Stats"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "whytcard-brain.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.installCopilotInstructions",
+        "title": "Install Copilot Chat Instructions",
+        "icon": "$(copilot)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.addDoc",
+        "title": "Add",
+        "icon": "$(add)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.addPitfall",
+        "title": "Add Pitfall",
+        "icon": "$(warning)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.deleteEntry",
+        "title": "Delete",
+        "icon": "$(trash)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.viewEntry",
+        "title": "View",
+        "icon": "$(eye)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.search",
+        "title": "Search",
+        "icon": "$(search)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.exportDb",
+        "title": "Export",
+        "icon": "$(export)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.copyContent",
+        "title": "Copy",
+        "icon": "$(copy)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.sendToChat",
+        "title": "Send to Chat",
+        "icon": "$(comment-discussion)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.editEntry",
+        "title": "Edit",
+        "icon": "$(edit)",
+        "category": "Brain"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "whytcard-brain.refresh",
+          "when": "view =~ /whytcard-brain\\./",
+          "group": "navigation"
+        },
+        {
+          "command": "whytcard-brain.addDoc",
+          "when": "view =~ /whytcard-brain\\./",
+          "group": "navigation"
+        },
+        {
+          "command": "whytcard-brain.search",
+          "when": "view =~ /whytcard-brain\\./",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "whytcard-brain.sendToChat",
+          "when": "viewItem == doc",
+          "group": "inline"
+        },
+        {
+          "command": "whytcard-brain.viewEntry",
+          "when": "viewItem == doc",
+          "group": "inline"
+        },
+        {
+          "command": "whytcard-brain.copyContent",
+          "when": "viewItem == doc",
+          "group": "1_actions"
+        },
+        {
+          "command": "whytcard-brain.editEntry",
+          "when": "viewItem == doc",
+          "group": "1_actions"
+        },
+        {
+          "command": "whytcard-brain.deleteEntry",
+          "when": "viewItem == doc",
+          "group": "2_delete"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "whytcard-brain.deleteEntry",
+          "when": "false"
+        },
+        {
+          "command": "whytcard-brain.viewEntry",
+          "when": "false"
+        },
+        {
+          "command": "whytcard-brain.copyContent",
+          "when": "false"
+        },
+        {
+          "command": "whytcard-brain.sendToChat",
+          "when": "false"
+        },
+        {
+          "command": "whytcard-brain.editEntry",
+          "when": "false"
+        },
+        {
+          "command": "whytcard-brain.addPitfall",
+          "when": "false"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "whytcard-brain.instructions",
+        "contents": "No instructions yet.\n[Add Instruction](command:whytcard-brain.addDoc)"
+      },
+      {
+        "view": "whytcard-brain.documentation",
+        "contents": "No documentation yet.\n[Add Documentation](command:whytcard-brain.addDoc)"
+      },
+      {
+        "view": "whytcard-brain.context",
+        "contents": "No context yet.\n[Add Context](command:whytcard-brain.addDoc)"
+      },
+      {
+        "view": "whytcard-brain.stats",
+        "contents": "Usage statistics for Brain tools used by Copilot."
+      }
+    ],
+    "configuration": {
+      "title": "WhytCard Brain",
+      "properties": {
+        "whytcard-brain.autoInstallCopilotInstructions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically create/merge .github/copilot-instructions.md so Copilot Chat consults Brain tools without user intervention."
+        },
+        "whytcard-brain.autoEnableCopilotInstructionFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically enable github.copilot.chat.codeGeneration.useInstructionFiles for the workspace."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node scripts/build.js",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "test": "mocha -r ts-node/register src/test/unit/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.10.0",
+    "@types/sql.js": "^1.4.9",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.19.8",
+    "mocha": "^11.7.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "sql.js": "^1.13.0"
+  }
+}

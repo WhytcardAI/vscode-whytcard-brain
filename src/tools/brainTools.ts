@@ -3,8 +3,14 @@
  * Ces outils sont appeles AUTOMATIQUEMENT par Copilot
  */
 
-import * as vscode from 'vscode';
-import { getBrainService, trackError, trackUsage } from '../services/brainService';
+import * as vscode from "vscode";
+import {
+  getBrainService,
+  trackError,
+  trackUsage,
+} from "../services/brainService";
+import { ProjectInitService } from "../services/projectInitService";
+import { DiagnosticsService } from "../services/diagnosticsService";
 
 // Interfaces pour les inputs des outils
 interface SearchDocsInput {
@@ -42,7 +48,7 @@ interface GetContextInput {
 interface ConsultInput {
   query: string;
   library?: string;
-  category?: 'instruction' | 'documentation' | 'project';
+  category?: "instruction" | "documentation" | "project";
   projectPath?: string;
   includeInstructions?: boolean;
   includeContext?: boolean;
@@ -56,10 +62,10 @@ interface ConsultInput {
 class GetInstructionsTool implements vscode.LanguageModelTool<GetInstructionsInput> {
   async invoke(
     _options: vscode.LanguageModelToolInvocationOptions<GetInstructionsInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
-      trackUsage('getInstructionsCount');
+      trackUsage("getInstructionsCount");
       const service = getBrainService();
       const instructions = service.getAllInstructions();
 
@@ -67,7 +73,7 @@ class GetInstructionsTool implements vscode.LanguageModelTool<GetInstructionsInp
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(
             `Aucune instruction trouvee dans le Brain.\n` +
-              `Utilise whytcard-brain_storeDoc avec category='instruction' pour en ajouter.`
+              `Utilise whytcard-brain_storeDoc avec category='instruction' pour en ajouter.`,
           ),
         ]);
       }
@@ -78,17 +84,19 @@ class GetInstructionsTool implements vscode.LanguageModelTool<GetInstructionsInp
       for (const doc of instructions) {
         result += `### ${doc.title}\n`;
         result += `**Librairie:** ${doc.library} | **Sujet:** ${doc.topic}\n\n`;
-        result += doc.content + '\n\n';
-        result += '---\n\n';
+        result += doc.content + "\n\n";
+        result += "---\n\n";
       }
 
-      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(result),
+      ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`getInstructions: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(
-          `Erreur lors de la recuperation des instructions: ${errMsg}`
+          `Erreur lors de la recuperation des instructions: ${errMsg}`,
         ),
       ]);
     }
@@ -96,7 +104,7 @@ class GetInstructionsTool implements vscode.LanguageModelTool<GetInstructionsInp
 
   async prepareInvocation(
     _options: vscode.LanguageModelToolInvocationPrepareOptions<GetInstructionsInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Chargement des instructions obligatoires...`,
@@ -110,10 +118,10 @@ class GetInstructionsTool implements vscode.LanguageModelTool<GetInstructionsInp
 class GetContextTool implements vscode.LanguageModelTool<GetContextInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<GetContextInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
-      trackUsage('getContextCount');
+      trackUsage("getContextCount");
       const service = getBrainService();
       const contextDocs = service.getProjectContext(options.input.projectPath);
 
@@ -121,7 +129,7 @@ class GetContextTool implements vscode.LanguageModelTool<GetContextInput> {
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(
             `Aucun contexte projet trouve dans le Brain.\n` +
-              `Utilise whytcard-brain_storeDoc avec category='project' pour documenter l'architecture.`
+              `Utilise whytcard-brain_storeDoc avec category='project' pour documenter l'architecture.`,
           ),
         ]);
       }
@@ -131,23 +139,27 @@ class GetContextTool implements vscode.LanguageModelTool<GetContextInput> {
       for (const doc of contextDocs) {
         result += `### ${doc.title}\n`;
         result += `**Scope:** ${doc.library} | **Sujet:** ${doc.topic}\n\n`;
-        result += doc.content + '\n\n';
-        result += '---\n\n';
+        result += doc.content + "\n\n";
+        result += "---\n\n";
       }
 
-      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(result),
+      ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`getContext: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de la recuperation du contexte: ${errMsg}`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de la recuperation du contexte: ${errMsg}`,
+        ),
       ]);
     }
   }
 
   async prepareInvocation(
     _options: vscode.LanguageModelToolInvocationPrepareOptions<GetContextInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Chargement du contexte projet...`,
@@ -161,10 +173,10 @@ class GetContextTool implements vscode.LanguageModelTool<GetContextInput> {
 class SearchDocsTool implements vscode.LanguageModelTool<SearchDocsInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<SearchDocsInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
-      trackUsage('searchCount');
+      trackUsage("searchCount");
       const { query, library, category } = options.input;
       const service = getBrainService();
 
@@ -176,7 +188,7 @@ class SearchDocsTool implements vscode.LanguageModelTool<SearchDocsInput> {
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(
             `Aucune documentation locale trouvee pour "${query}". ` +
-              `Utilise Context7 ou Tavily pour chercher sur le web, puis utilise whytcard-brain_storeDoc pour sauvegarder.`
+              `Utilise Context7 ou Tavily pour chercher sur le web, puis utilise whytcard-brain_storeDoc pour sauvegarder.`,
           ),
         ]);
       }
@@ -192,11 +204,11 @@ class SearchDocsTool implements vscode.LanguageModelTool<SearchDocsInput> {
             result += ` | **Categorie:** ${doc.category}`;
           }
           result += `\n\n`;
-          result += doc.content + '\n\n';
+          result += doc.content + "\n\n";
           if (doc.url) {
             result += `Source: ${doc.url}\n\n`;
           }
-          result += '---\n\n';
+          result += "---\n\n";
         }
       }
 
@@ -205,29 +217,33 @@ class SearchDocsTool implements vscode.LanguageModelTool<SearchDocsInput> {
         for (const p of pitfalls.slice(0, 3)) {
           result += `#### ${p.symptom}\n\n`;
           if (p.error) {
-            result += '```\n' + p.error + '\n```\n\n';
+            result += "```\n" + p.error + "\n```\n\n";
           }
           result += `**Solution:** ${p.solution}\n\n`;
           if (p.code) {
-            result += '```typescript\n' + p.code + '\n```\n\n';
+            result += "```typescript\n" + p.code + "\n```\n\n";
           }
-          result += '---\n\n';
+          result += "---\n\n";
         }
       }
 
-      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(result),
+      ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`searchDocs: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de la recherche dans Brain: ${errMsg}`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de la recherche dans Brain: ${errMsg}`,
+        ),
       ]);
     }
   }
 
   async prepareInvocation(
     options: vscode.LanguageModelToolInvocationPrepareOptions<SearchDocsInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Recherche "${options.input.query}" dans la base Brain...`,
@@ -242,7 +258,7 @@ class SearchDocsTool implements vscode.LanguageModelTool<SearchDocsInput> {
 class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<ConsultInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
       const service = getBrainService();
@@ -259,9 +275,12 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       const includeInstr = includeInstructions !== false;
       const includeCtx = includeContext !== false;
-      const docsLimit = typeof maxDocs === 'number' ? Math.max(1, Math.min(10, maxDocs)) : 5;
+      const docsLimit =
+        typeof maxDocs === "number" ? Math.max(1, Math.min(10, maxDocs)) : 5;
       const pitfallsLimit =
-        typeof maxPitfalls === 'number' ? Math.max(0, Math.min(10, maxPitfalls)) : 3;
+        typeof maxPitfalls === "number"
+          ? Math.max(0, Math.min(10, maxPitfalls))
+          : 3;
 
       let result = `## Brain consult\n\n`;
       result += `**Query:** ${query}\n`;
@@ -275,7 +294,7 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       // Instructions
       if (includeInstr) {
-        trackUsage('getInstructionsCount');
+        trackUsage("getInstructionsCount");
         const instructions = service.getAllInstructions();
         result += `### Instructions (mandatory) (${instructions.length})\n\n`;
         if (instructions.length === 0) {
@@ -287,7 +306,7 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
             // Keep it concise to avoid flooding the chat
             const content =
               doc.content.length > 1200
-                ? doc.content.substring(0, 1200) + '\n\n... (truncated)'
+                ? doc.content.substring(0, 1200) + "\n\n... (truncated)"
                 : doc.content;
             result += content + `\n\n---\n\n`;
           }
@@ -300,7 +319,7 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       // Context
       if (includeCtx) {
-        trackUsage('getContextCount');
+        trackUsage("getContextCount");
         const contextDocs = service.getProjectContext(projectPath);
         result += `### Project context (${contextDocs.length})\n\n`;
         if (contextDocs.length === 0) {
@@ -311,7 +330,7 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
             result += `**Scope:** ${doc.library} | **Topic:** ${doc.topic}\n\n`;
             const content =
               doc.content.length > 1200
-                ? doc.content.substring(0, 1200) + '\n\n... (truncated)'
+                ? doc.content.substring(0, 1200) + "\n\n... (truncated)"
                 : doc.content;
             result += content + `\n\n---\n\n`;
           }
@@ -323,14 +342,16 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
       }
 
       // Local search
-      trackUsage('searchCount');
+      trackUsage("searchCount");
       const docsAll = service.searchDocs(query, library, category);
       const pitfallsAll = service.searchPitfalls(query);
 
       // If we already included instructions, avoid returning instruction docs again unless user explicitly asked.
       const docs =
         includeInstr && !category
-          ? docsAll.filter((d) => (d.category || 'documentation') !== 'instruction')
+          ? docsAll.filter(
+              (d) => (d.category || "documentation") !== "instruction",
+            )
           : docsAll;
 
       result += `### Local documentation (${docs.length})\n\n`;
@@ -346,7 +367,7 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
           result += `\n\n`;
           const content =
             doc.content.length > 1500
-              ? doc.content.substring(0, 1500) + '\n\n... (truncated)'
+              ? doc.content.substring(0, 1500) + "\n\n... (truncated)"
               : doc.content;
           result += content + `\n\n`;
           if (doc.url) {
@@ -367,11 +388,11 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
         for (const p of pitfalls) {
           result += `#### ${p.symptom}\n\n`;
           if (p.error) {
-            result += '```\n' + p.error + '\n```\n\n';
+            result += "```\n" + p.error + "\n```\n\n";
           }
           result += `**Solution:** ${p.solution}\n\n`;
           if (p.code) {
-            result += '```typescript\n' + p.code + '\n```\n\n';
+            result += "```typescript\n" + p.code + "\n```\n\n";
           }
           result += `---\n\n`;
         }
@@ -379,19 +400,23 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       result += `> Hint: If nothing is found locally, use Context7/Tavily and then save via #brainSave.\n`;
 
-      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(result),
+      ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`consult: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors du consult Brain: ${errMsg}`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors du consult Brain: ${errMsg}`,
+        ),
       ]);
     }
   }
 
   async prepareInvocation(
     options: vscode.LanguageModelToolInvocationPrepareOptions<ConsultInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Consult Brain: instructions + context + search for "${options.input.query}"...`,
@@ -405,10 +430,10 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 class StoreDocTool implements vscode.LanguageModelTool<StoreDocInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<StoreDocInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
-      trackUsage('storeDocCount');
+      trackUsage("storeDocCount");
       const { library, topic, title, content, url, category } = options.input;
       const service = getBrainService();
 
@@ -418,13 +443,13 @@ class StoreDocTool implements vscode.LanguageModelTool<StoreDocInput> {
         title,
         content,
         url,
-        category: category || 'documentation',
-        source: 'copilot',
+        category: category || "documentation",
+        source: "copilot",
       });
 
       if (id) {
         // Refresh les tree views
-        vscode.commands.executeCommand('whytcard-brain.refresh');
+        vscode.commands.executeCommand("whytcard-brain.refresh");
 
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(
@@ -433,36 +458,40 @@ class StoreDocTool implements vscode.LanguageModelTool<StoreDocInput> {
               `- **Librairie:** ${library}\n` +
               `- **Sujet:** ${topic}\n` +
               `- **Titre:** ${title}\n` +
-              `- **Categorie:** ${category || 'documentation'}`
+              `- **Categorie:** ${category || "documentation"}`,
           ),
         ]);
       }
 
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement de la documentation.`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de l'enregistrement de la documentation.`,
+        ),
       ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`storeDoc: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement: ${errMsg}`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de l'enregistrement: ${errMsg}`,
+        ),
       ]);
     }
   }
 
   async prepareInvocation(
     options: vscode.LanguageModelToolInvocationPrepareOptions<StoreDocInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Enregistrement de "${options.input.title}" dans Brain...`,
       confirmationMessages: {
-        title: 'Sauvegarder documentation',
+        title: "Sauvegarder documentation",
         message: new vscode.MarkdownString(
           `Enregistrer cette documentation?\n\n` +
             `**Librairie:** ${options.input.library}\n` +
             `**Sujet:** ${options.input.topic}\n` +
-            `**Titre:** ${options.input.title}`
+            `**Titre:** ${options.input.title}`,
         ),
       },
     };
@@ -475,10 +504,10 @@ class StoreDocTool implements vscode.LanguageModelTool<StoreDocInput> {
 class StorePitfallTool implements vscode.LanguageModelTool<StorePitfallInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<StorePitfallInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
-      trackUsage('storePitfallCount');
+      trackUsage("storePitfallCount");
       const { symptom, solution, error, library, code } = options.input;
       const service = getBrainService();
 
@@ -492,42 +521,46 @@ class StorePitfallTool implements vscode.LanguageModelTool<StorePitfallInput> {
 
       if (id) {
         // Refresh les tree views
-        vscode.commands.executeCommand('whytcard-brain.refresh');
+        vscode.commands.executeCommand("whytcard-brain.refresh");
 
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(
             `Bug enregistre avec succes!\n` +
               `- **ID:** ${id}\n` +
               `- **Symptome:** ${symptom.substring(0, 50)}...\n` +
-              `- **Librairie:** ${library || 'non specifiee'}`
+              `- **Librairie:** ${library || "non specifiee"}`,
           ),
         ]);
       }
 
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement du bug.`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de l'enregistrement du bug.`,
+        ),
       ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`storePitfall: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement: ${errMsg}`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de l'enregistrement: ${errMsg}`,
+        ),
       ]);
     }
   }
 
   async prepareInvocation(
     options: vscode.LanguageModelToolInvocationPrepareOptions<StorePitfallInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Enregistrement du bug dans Brain...`,
       confirmationMessages: {
-        title: 'Sauvegarder bug',
+        title: "Sauvegarder bug",
         message: new vscode.MarkdownString(
           `Enregistrer ce bug?\n\n` +
             `**Symptome:** ${options.input.symptom.substring(0, 100)}...\n` +
-            `**Solution:** ${options.input.solution.substring(0, 100)}...`
+            `**Solution:** ${options.input.solution.substring(0, 100)}...`,
         ),
       },
     };
@@ -548,21 +581,24 @@ interface LogSessionInput {
 class LogSessionTool implements vscode.LanguageModelTool<LogSessionInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<LogSessionInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.LanguageModelToolResult> {
     try {
-      trackUsage('storeDocCount'); // Compte comme un store
+      trackUsage("storeDocCount"); // Compte comme un store
       const { project, summary, nextSteps, decisions } = options.input;
       const service = getBrainService();
 
       const now = new Date();
-      const dateStr = now.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
+      const dateStr = now.toLocaleDateString("fr-FR", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
-      const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const timeStr = now.toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
       let sessionContent = `## Session du ${dateStr} a ${timeStr}\n\n`;
       sessionContent += `### Resume\n${summary}\n\n`;
@@ -577,29 +613,31 @@ class LogSessionTool implements vscode.LanguageModelTool<LogSessionInput> {
 
       const id = service.appendToDoc(
         project,
-        'sessions',
+        "sessions",
         `Journal de sessions - ${project}`,
-        sessionContent
+        sessionContent,
       );
 
       if (id) {
-        vscode.commands.executeCommand('whytcard-brain.refresh');
+        vscode.commands.executeCommand("whytcard-brain.refresh");
 
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(
             `Session enregistree pour ${project}!\n` +
               `- **Date:** ${dateStr} ${timeStr}\n` +
               `- **ID doc:** ${id}\n\n` +
-              `Le contexte projet a ete mis a jour.`
+              `Le contexte projet a ete mis a jour.`,
           ),
         ]);
       }
 
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement de la session.`),
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de l'enregistrement de la session.`,
+        ),
       ]);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`logSession: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(`Erreur: ${errMsg}`),
@@ -609,7 +647,7 @@ class LogSessionTool implements vscode.LanguageModelTool<LogSessionInput> {
 
   async prepareInvocation(
     options: vscode.LanguageModelToolInvocationPrepareOptions<LogSessionInput>,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ): Promise<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Enregistrement de la session pour ${options.input.project}...`,
@@ -617,21 +655,139 @@ class LogSessionTool implements vscode.LanguageModelTool<LogSessionInput> {
   }
 }
 
+// Interface pour initProject
+interface InitProjectInput {
+  // pas d'input nécessaire
+}
+
+/**
+ * Outil pour initialiser le projet (scan stack + plan d'action)
+ */
+class InitProjectTool implements vscode.LanguageModelTool<InitProjectInput> {
+  async invoke(
+    _options: vscode.LanguageModelToolInvocationOptions<InitProjectInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelToolResult> {
+    try {
+      trackUsage("searchCount"); // Use search count as proxy for now or add new metric
+      const initService = new ProjectInitService();
+      const plan = await initService.generateInitPlan();
+
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(plan),
+      ]);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      trackError(`initProject: ${errMsg}`);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(
+          `Erreur lors de l'initialisation: ${errMsg}`,
+        ),
+      ]);
+    }
+  }
+
+  async prepareInvocation(
+    _options: vscode.LanguageModelToolInvocationPrepareOptions<InitProjectInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.PreparedToolInvocation> {
+    return {
+      invocationMessage: `Analyse du projet et génération du plan d'initialisation...`,
+    };
+  }
+}
+
+// Interface pour analyzeError
+interface AnalyzeErrorInput {
+  error: string;
+}
+
+/**
+ * Outil pour analyser une erreur (connu vs inconnu)
+ */
+class AnalyzeErrorTool implements vscode.LanguageModelTool<AnalyzeErrorInput> {
+  async invoke(
+    options: vscode.LanguageModelToolInvocationOptions<AnalyzeErrorInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelToolResult> {
+    try {
+      trackUsage("searchCount");
+      const diagnostics = new DiagnosticsService();
+      const result = await diagnostics.analyzeError(options.input.error);
+
+      if (result.known && result.pitfall) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            `✅ Bug CONNU dans Brain !\n\n` +
+              `**Symptôme:** ${result.pitfall.symptom}\n` +
+              `**Solution:** ${result.pitfall.solution}\n\n` +
+              `Tu peux répondre immédiatement avec cette solution.`,
+          ),
+        ]);
+      }
+
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(
+          `❌ Bug INCONNU dans Brain.\n\n` +
+            `**Action requise:**\n` +
+            `1. Cherche la solution sur le web (via MCP/Tavily/Context7).\n` +
+            `2. Une fois la solution trouvée et vérifiée, SAUVEGARDE-LA avec \`whytcard-brain_storePitfall\`.\n\n` +
+            `Suggestion de symptôme pour la sauvegarde: "${result.suggestion?.symptom}"`,
+        ),
+      ]);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      trackError(`analyzeError: ${errMsg}`);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(`Erreur d'analyse: ${errMsg}`),
+      ]);
+    }
+  }
+
+  async prepareInvocation(
+    _options: vscode.LanguageModelToolInvocationPrepareOptions<AnalyzeErrorInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.PreparedToolInvocation> {
+    return {
+      invocationMessage: `Analyse de l'erreur dans Brain...`,
+    };
+  }
+}
+
+// ... existing tools ...
+
 /**
  * Enregistre tous les outils LM
  */
 export function registerBrainTools(context: vscode.ExtensionContext): void {
+  const lm = (vscode as any).lm as
+    | { registerTool?: (...args: any[]) => vscode.Disposable }
+    | undefined;
+  if (!lm || typeof lm.registerTool !== "function") {
+    console.log(
+      "Brain LM tools not available in this host. Skipping LM tool registration.",
+    );
+    return;
+  }
+
   context.subscriptions.push(
-    vscode.lm.registerTool('whytcard-brain_getInstructions', new GetInstructionsTool()),
-    vscode.lm.registerTool('whytcard-brain_getContext', new GetContextTool()),
-    vscode.lm.registerTool('whytcard-brain_searchDocs', new SearchDocsTool()),
-    vscode.lm.registerTool('whytcard-brain_consult', new ConsultTool()),
-    vscode.lm.registerTool('whytcard-brain_storeDoc', new StoreDocTool()),
-    vscode.lm.registerTool('whytcard-brain_storePitfall', new StorePitfallTool()),
-    vscode.lm.registerTool('whytcard-brain_logSession', new LogSessionTool())
+    lm.registerTool(
+      "whytcard-brain_getInstructions",
+      new GetInstructionsTool(),
+    ),
+    lm.registerTool("whytcard-brain_getContext", new GetContextTool()),
+    lm.registerTool("whytcard-brain_searchDocs", new SearchDocsTool()),
+    lm.registerTool("whytcard-brain_consult", new ConsultTool()),
+    lm.registerTool("whytcard-brain_storeDoc", new StoreDocTool()),
+    lm.registerTool("whytcard-brain_storePitfall", new StorePitfallTool()),
+    lm.registerTool("whytcard-brain_logSession", new LogSessionTool()),
+    lm.registerTool("whytcard-brain_initProject", new InitProjectTool()),
+    lm.registerTool("whytcard-brain_analyzeError", new AnalyzeErrorTool()),
   );
 
   console.log(
-    'Brain LM tools registered (7 tools) - Copilot peut maintenant les utiliser automatiquement'
+    "Brain LM tools registered (9 tools) - Copilot peut maintenant les utiliser automatiquement",
   );
 }
+
+// ... reste du code ...

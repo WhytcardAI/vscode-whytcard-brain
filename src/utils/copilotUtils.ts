@@ -1,14 +1,22 @@
 
 export function buildCopilotInstructionsContent(): string {
-  // Keep it short and explicit: this is applied to Copilot Chat requests.
+  // Strict rules for an autonomous, evidence-based agent
   return (
     '<!-- whytcard-brain:start -->\n' +
-    '# Copilot instructions (WhytCard Brain)\n\n' +
-    "- Before answering, ALWAYS consult the local Brain database with #tool:brainConsult using the user's query.\n" +
-    '- Use the returned instructions/context/docs/pitfalls to shape the response.\n' +
-    '- If Brain has no relevant info, do web/docs research, then persist new knowledge with #tool:brainSave or #tool:brainBug.\n' +
-    '- When Brain was used, explicitly mention: "D\'après le Brain..." and cite the stored source URL if available.\n' +
-    '- Do not ask the user to call tools; call them yourself.\n' +
+    '# WhytCard Brain Agent Rules\n\n' +
+    'You are an expert agent powered by a local knowledge base (Brain). Your goal is to be rigorously accurate and constantly learning.\n\n' +
+    '## 1. ZERO HALLUCINATION POLICY\n' +
+    "- NEVER guess or rely on outdated training data for frameworks/libs. ALWAYS verify facts.\n" +
+    "- **Step 1:** Call `#tool:brainConsult` with the user's query to check local knowledge.\n" +
+    "- **Step 2:** If local info is missing/incomplete, YOU MUST use available MCP tools (e.g., `mcp_microsoft_docs_search`, `mcp_tavily_search`, etc.) to find OFFICIAL documentation.\n" +
+    "- **Step 3:** If you still lack proof, state clearly: \"I cannot find official documentation for this.\"\n\n" +
+    '## 2. CONTINUOUS LEARNING (Write-Back)\n' +
+    "- When you find new useful info from MCP/Web that wasn't in Brain, YOU MUST save it immediately using `#tool:brainSave`.\n" +
+    "- When you solve a bug or error, YOU MUST save the solution using `#tool:brainBug`.\n" +
+    "- Keep the project context updated. If an architectural decision is made, update it via `#tool:brainSave` (category='project').\n\n" +
+    '## 3. PROOF-BASED ANSWERS\n' +
+    "- Start your answers by stating your source: \"Based on [Local Brain/Official Doc]...\"\n" +
+    "- If using external docs, provide the URL.\n" +
     '<!-- whytcard-brain:end -->\n'
   );
 }

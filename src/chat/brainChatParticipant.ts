@@ -10,8 +10,12 @@
  * 5. Quand on trouve → on enregistre automatiquement
  */
 
-import * as vscode from 'vscode';
-import { getBrainService, type Doc, type Pitfall } from '../services/brainService';
+import * as vscode from "vscode";
+import {
+  getBrainService,
+  type Doc,
+  type Pitfall,
+} from "../services/brainService";
 
 interface ChatResult extends vscode.ChatResult {
   metadata?: {
@@ -24,8 +28,23 @@ interface ChatResult extends vscode.ChatResult {
 /**
  * Register the @brain chat participant
  */
-export function registerBrainChatParticipant(context: vscode.ExtensionContext): vscode.Disposable {
-  const participant = vscode.chat.createChatParticipant('whytcard-brain.brain', handleRequest);
+export function registerBrainChatParticipant(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  const chat = (vscode as any).chat as
+    | { createChatParticipant?: (...args: any[]) => any }
+    | undefined;
+  if (!chat || typeof chat.createChatParticipant !== "function") {
+    console.log(
+      "Brain chat participant not available in this host. Skipping chat participant registration.",
+    );
+    return new vscode.Disposable(() => {});
+  }
+
+  const participant = chat.createChatParticipant(
+    "whytcard-brain.brain",
+    handleRequest,
+  ) as vscode.ChatParticipant;
 
   // Follow-up suggestions
   participant.followupProvider = {
@@ -35,8 +54,8 @@ export function registerBrainChatParticipant(context: vscode.ExtensionContext): 
       // Si rien trouvé localement, proposer la recherche web
       if (!result.metadata?.localFound) {
         followups.push({
-          prompt: 'Cherche sur le web et enregistre la doc',
-          label: '🌐 Chercher sur le web',
+          prompt: "Cherche sur le web et enregistre la doc",
+          label: "🌐 Chercher sur le web",
         });
       }
 
@@ -54,21 +73,25 @@ async function handleRequest(
   request: vscode.ChatRequest,
   _context: vscode.ChatContext,
   stream: vscode.ChatResponseStream,
-  _token: vscode.CancellationToken
+  _token: vscode.CancellationToken,
 ): Promise<ChatResult> {
   const service = getBrainService();
   const query = request.prompt.trim();
 
   if (!query) {
     stream.markdown(`## 🧠 WhytCard Brain\n\n`);
-    stream.markdown(`Pose-moi une question technique et je cherche dans ma base.\n\n`);
+    stream.markdown(
+      `Pose-moi une question technique et je cherche dans ma base.\n\n`,
+    );
     stream.markdown(`**Exemples:**\n`);
     stream.markdown(`- \`@brain next.js async params\`\n`);
     stream.markdown(`- \`@brain tailwind dark mode\`\n`);
     stream.markdown(`- \`@brain react useEffect cleanup\`\n`);
 
     const stats = service.getStats();
-    stream.markdown(`\n---\n📚 **${stats.docs}** docs | ⚠️ **${stats.pitfalls}** bugs connus\n`);
+    stream.markdown(
+      `\n---\n📚 **${stats.docs}** docs | ⚠️ **${stats.pitfalls}** bugs connus\n`,
+    );
 
     return { metadata: { localFound: true, docsCount: 0, pitfallsCount: 0 } };
   }
@@ -77,7 +100,7 @@ async function handleRequest(
   const library = detectLibrary(query);
 
   // Chercher dans la base locale
-  stream.progress('Recherche dans la base locale...');
+  stream.progress("Recherche dans la base locale...");
   const docs = service.searchDocs(query, library);
   const pitfalls = service.searchPitfalls(query);
 
@@ -97,7 +120,7 @@ function showLocalResults(
   stream: vscode.ChatResponseStream,
   docs: Doc[],
   pitfalls: Pitfall[],
-  query: string
+  query: string,
 ): ChatResult {
   stream.markdown(`## ✅ Trouvé dans la base\n\n`);
 
@@ -107,7 +130,7 @@ function showLocalResults(
 
     for (const doc of docs.slice(0, 3)) {
       // Add reference to "Used references"
-      const safeTitle = doc.title.replace(/[^a-zA-Z0-9-_ ]/g, '');
+      const safeTitle = doc.title.replace(/[^a-zA-Z0-9-_ ]/g, "");
       const uri = vscode.Uri.parse(`brain://doc/${doc.id}/${safeTitle}`);
       stream.reference(uri);
 
@@ -117,14 +140,14 @@ function showLocalResults(
       // Contenu (tronqué si trop long)
       const content =
         doc.content.length > 1500
-          ? doc.content.substring(0, 1500) + '\n\n*... (tronqué)*'
+          ? doc.content.substring(0, 1500) + "\n\n*... (tronqué)*"
           : doc.content;
-      stream.markdown(content + '\n\n');
+      stream.markdown(content + "\n\n");
 
       if (doc.url) {
         stream.markdown(`🔗 [Source](${doc.url})\n\n`);
       }
-      stream.markdown('---\n\n');
+      stream.markdown("---\n\n");
     }
   }
 
@@ -134,22 +157,24 @@ function showLocalResults(
 
     for (const p of pitfalls.slice(0, 2)) {
       // Add reference to "Used references"
-      const safeSymptom = p.symptom.replace(/[^a-zA-Z0-9-_ ]/g, '').substring(0, 30);
+      const safeSymptom = p.symptom
+        .replace(/[^a-zA-Z0-9-_ ]/g, "")
+        .substring(0, 30);
       const uri = vscode.Uri.parse(`brain://pitfall/${p.id}/${safeSymptom}`);
       stream.reference(uri);
 
       stream.markdown(`#### 🔴 ${p.symptom}\n\n`);
 
       if (p.error) {
-        stream.markdown('```\n' + p.error + '\n```\n\n');
+        stream.markdown("```\n" + p.error + "\n```\n\n");
       }
 
       stream.markdown(`**✅ Solution:** ${p.solution}\n\n`);
 
       if (p.code) {
-        stream.markdown('```typescript\n' + p.code + '\n```\n\n');
+        stream.markdown("```typescript\n" + p.code + "\n```\n\n");
       }
-      stream.markdown('---\n\n');
+      stream.markdown("---\n\n");
     }
   }
 
@@ -169,7 +194,7 @@ function showNotFound(
   stream: vscode.ChatResponseStream,
   query: string,
   library: string | undefined,
-  service: ReturnType<typeof getBrainService>
+  service: ReturnType<typeof getBrainService>,
 ): ChatResult {
   stream.markdown(`## ❌ Pas trouvé dans la base\n\n`);
   stream.markdown(`Recherche: **${query}**\n\n`);
@@ -181,22 +206,24 @@ function showNotFound(
   const ctx7Lib = getContext7Library(library || query);
   if (ctx7Lib) {
     stream.markdown(`**Documentation officielle** (Context7):\n`);
-    stream.markdown('```\n');
+    stream.markdown("```\n");
     stream.markdown(`mcp_context7_get-library-docs\n`);
     stream.markdown(`  context7CompatibleLibraryID: "${ctx7Lib}"\n`);
     stream.markdown(`  topic: "${query}"\n`);
-    stream.markdown('```\n\n');
+    stream.markdown("```\n\n");
   }
 
   // Tavily pour recherche web
   stream.markdown(`**Recherche web** (Tavily):\n`);
-  stream.markdown('```\n');
+  stream.markdown("```\n");
   stream.markdown(`mcp_tavily_tavily-search\n`);
   stream.markdown(`  query: "${query}"\n`);
-  stream.markdown('```\n\n');
+  stream.markdown("```\n\n");
 
   stream.markdown(`---\n`);
-  stream.markdown(`*💡 Quand tu trouves la doc, dis-moi et je l'enregistre automatiquement.*\n`);
+  stream.markdown(
+    `*💡 Quand tu trouves la doc, dis-moi et je l'enregistre automatiquement.*\n`,
+  );
 
   return {
     metadata: {
@@ -213,26 +240,26 @@ function showNotFound(
 function detectLibrary(query: string): string | undefined {
   const q = query.toLowerCase();
 
-  if (q.includes('next') || q.includes('app router') || q.includes('nextjs')) {
-    return 'next.js';
+  if (q.includes("next") || q.includes("app router") || q.includes("nextjs")) {
+    return "next.js";
   }
-  if (q.includes('react') || q.includes('hook')) {
-    return 'react';
+  if (q.includes("react") || q.includes("hook")) {
+    return "react";
   }
-  if (q.includes('tailwind')) {
-    return 'tailwind';
+  if (q.includes("tailwind")) {
+    return "tailwind";
   }
-  if (q.includes('typescript') || q.includes('ts ')) {
-    return 'typescript';
+  if (q.includes("typescript") || q.includes("ts ")) {
+    return "typescript";
   }
-  if (q.includes('zod')) {
-    return 'zod';
+  if (q.includes("zod")) {
+    return "zod";
   }
-  if (q.includes('prisma')) {
-    return 'prisma';
+  if (q.includes("prisma")) {
+    return "prisma";
   }
-  if (q.includes('shadcn')) {
-    return 'shadcn';
+  if (q.includes("shadcn")) {
+    return "shadcn";
   }
 
   return undefined;
@@ -244,23 +271,23 @@ function detectLibrary(query: string): string | undefined {
 function getContext7Library(query: string): string | null {
   const q = query.toLowerCase();
 
-  if (q.includes('next') || q.includes('nextjs')) {
-    return '/vercel/next.js';
+  if (q.includes("next") || q.includes("nextjs")) {
+    return "/vercel/next.js";
   }
-  if (q.includes('react')) {
-    return '/facebook/react';
+  if (q.includes("react")) {
+    return "/facebook/react";
   }
-  if (q.includes('tailwind')) {
-    return '/tailwindlabs/tailwindcss';
+  if (q.includes("tailwind")) {
+    return "/tailwindlabs/tailwindcss";
   }
-  if (q.includes('typescript')) {
-    return '/microsoft/TypeScript';
+  if (q.includes("typescript")) {
+    return "/microsoft/TypeScript";
   }
-  if (q.includes('zod')) {
-    return '/colinhacks/zod';
+  if (q.includes("zod")) {
+    return "/colinhacks/zod";
   }
-  if (q.includes('prisma')) {
-    return '/prisma/prisma';
+  if (q.includes("prisma")) {
+    return "/prisma/prisma";
   }
 
   return null;

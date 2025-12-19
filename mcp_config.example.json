@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "mcpServers": {
+    "whytcard-brain": {
+      "command": "node",
+      "args": ["C:/path/to/vscode-whytcard-brain/dist/mcp-server.cjs"],
+      "env": {
+        "BRAIN_DB_PATH": ""
+      },
+      "disabled": false,
+      "autoApprove": ["brainConsult", "brainSearch"]
+    }
+  }
+}

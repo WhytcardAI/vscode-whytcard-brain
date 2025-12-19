@@ -10,7 +10,7 @@
     "url": "https://github.com/whytcard/vscode-whytcard-brain"
   },
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.89.0"
   },
   "categories": [
     "Other",
@@ -40,7 +40,9 @@
     "onLanguageModelTool:whytcard-brain_consult",
     "onLanguageModelTool:whytcard-brain_storeDoc",
     "onLanguageModelTool:whytcard-brain_storePitfall",
-    "onLanguageModelTool:whytcard-brain_logSession"
+    "onLanguageModelTool:whytcard-brain_logSession",
+    "onLanguageModelTool:whytcard-brain_initProject",
+    "onLanguageModelTool:whytcard-brain_analyzeError"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -334,6 +336,51 @@
             "summary"
           ]
         }
+      },
+      {
+        "name": "whytcard-brain_initProject",
+        "tags": [
+          "init",
+          "setup",
+          "brain"
+        ],
+        "displayName": "Init Project",
+        "toolReferenceName": "brainInit",
+        "modelDescription": "Analyzes the project stack and generates a plan to populate the Brain. Use this tool when starting a new project or when the user asks to initialize the Brain.",
+        "userDescription": "Initialize Brain for this project",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(rocket)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "whytcard-brain_analyzeError",
+        "tags": [
+          "debug",
+          "error",
+          "brain"
+        ],
+        "displayName": "Analyze Error",
+        "toolReferenceName": "brainDebug",
+        "modelDescription": "Checks if an error message is already known in the Brain database. Use this tool immediately when the user pastes an error stack trace.",
+        "userDescription": "Check if error is known",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(bug)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "description": "The error message or stack trace"
+            }
+          },
+          "required": [
+            "error"
+          ]
+        }
       }
     ],
     "viewsContainers": {
@@ -349,19 +396,23 @@
       "whytcard-brain": [
         {
           "id": "whytcard-brain.instructions",
-          "name": "Instructions"
+          "name": "Instructions",
+          "icon": "media/brain.svg"
         },
         {
           "id": "whytcard-brain.documentation",
-          "name": "Documentation"
+          "name": "Documentation",
+          "icon": "media/brain.svg"
         },
         {
           "id": "whytcard-brain.context",
-          "name": "Context"
+          "name": "Context",
+          "icon": "media/brain.svg"
         },
         {
           "id": "whytcard-brain.stats",
-          "name": "Stats"
+          "name": "Stats",
+          "icon": "media/brain.svg"
         }
       ]
     },
@@ -542,6 +593,7 @@
   "scripts": {
     "vscode:prepublish": "npm run build",
     "build": "node scripts/build.js",
+    "build:mcp": "esbuild src/mcp-server.ts --bundle --outfile=dist/mcp-server.js --format=esm --platform=node --target=node18 --banner:js=\"#!/usr/bin/env node\"",
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "test": "mocha -r ts-node/register src/test/unit/**/*.test.ts"
   },
@@ -556,6 +608,8 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
-    "sql.js": "^1.13.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "sql.js": "^1.13.0",
+    "zod": "^3.23.0"
   }
 }

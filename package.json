@@ -2,7 +2,7 @@
   "name": "whytcard-brain",
   "displayName": "WhytCard Brain",
   "description": "Local knowledge base for GitHub Copilot - Store instructions, documentation, and project context for AI-assisted development",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "whytcard",
   "license": "MIT",
   "repository": {

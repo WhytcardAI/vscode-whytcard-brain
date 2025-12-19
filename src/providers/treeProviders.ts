@@ -4,10 +4,15 @@
  * Hierarchie: Domain > Library > Topic > Doc (sauf Stats qui affiche les metriques)
  */
 
-import * as vscode from 'vscode';
-import { getBrainService, getUsageStats, inferDomain, type Doc } from '../services/brainService';
+import * as vscode from "vscode";
+import {
+  getBrainService,
+  getUsageStats,
+  inferDomain,
+  type Doc,
+} from "../services/brainService";
 
-export type DocCategory = 'instruction' | 'documentation' | 'project';
+export type DocCategory = "instruction" | "documentation" | "project";
 
 // =====================
 // TREE ITEM
@@ -18,13 +23,13 @@ export class BrainTreeItem extends vscode.TreeItem {
   public domainName?: string;
   public libraryName?: string;
   public topicName?: string;
-  public entryType?: 'doc' | 'stat';
+  public entryType?: "doc" | "stat";
   public entryId?: number;
   public entryData?: Doc;
 
   constructor(
     public readonly label: string,
-    public readonly collapsibleState: vscode.TreeItemCollapsibleState
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState,
   ) {
     super(label, collapsibleState);
   }
@@ -35,7 +40,9 @@ export class BrainTreeItem extends vscode.TreeItem {
 // =====================
 
 export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<BrainTreeItem | undefined | null | void>();
+  private _onDidChangeTreeData = new vscode.EventEmitter<
+    BrainTreeItem | undefined | null | void
+  >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   constructor(protected readonly category: DocCategory) {}
@@ -52,7 +59,7 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
     const service = getBrainService();
     const allDocs = service
       .getAllDocs()
-      .filter((d) => (d.category || 'documentation') === this.category);
+      .filter((d) => (d.category || "documentation") === this.category);
 
     // Root level: Domains
     if (!element) {
@@ -72,25 +79,30 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
           const domainDocs = docsWithDomain.filter((d) => d.domain === domain);
           const libraries = [...new Set(domainDocs.map((d) => d.library))];
 
-          const item = new BrainTreeItem(domain, vscode.TreeItemCollapsibleState.Collapsed);
+          const item = new BrainTreeItem(
+            domain,
+            vscode.TreeItemCollapsibleState.Collapsed,
+          );
           item.iconPath = new vscode.ThemeIcon(this.getDomainIcon(domain));
-          item.contextValue = 'domain';
-          item.description = `${libraries.length} lib(s)`;
+          item.contextValue = "domain";
+          item.description = `${libraries.length} libraries`;
           item.domainName = domain;
           item.docCategory = this.category;
           item.tooltip = `${domain} - ${libraries.length} librairie(s), ${domainDocs.length} doc(s)`;
           return item;
-        })
+        }),
       );
     }
 
     // Domain level: Libraries
-    if (element.contextValue === 'domain' && element.domainName) {
+    if (element.contextValue === "domain" && element.domainName) {
       const docsWithDomain = allDocs.map((d) => ({
         ...d,
         domain: d.domain || inferDomain(d.library),
       }));
-      const domainDocs = docsWithDomain.filter((d) => d.domain === element.domainName);
+      const domainDocs = docsWithDomain.filter(
+        (d) => d.domain === element.domainName,
+      );
       const libraries = [...new Set(domainDocs.map((d) => d.library))].sort();
 
       return Promise.resolve(
@@ -98,21 +110,24 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
           const libDocs = domainDocs.filter((d) => d.library === lib);
           const topics = [...new Set(libDocs.map((d) => d.topic))];
 
-          const item = new BrainTreeItem(lib, vscode.TreeItemCollapsibleState.Collapsed);
-          item.iconPath = new vscode.ThemeIcon('folder-library');
-          item.contextValue = 'library';
-          item.description = `${libDocs.length}`;
+          const item = new BrainTreeItem(
+            lib,
+            vscode.TreeItemCollapsibleState.Collapsed,
+          );
+          item.iconPath = new vscode.ThemeIcon("package");
+          item.contextValue = "library";
+          item.description = `${libDocs.length} docs`;
           item.domainName = element.domainName;
           item.libraryName = lib;
           item.docCategory = this.category;
           item.tooltip = `${lib} - ${topics.length} sujet(s), ${libDocs.length} doc(s)`;
           return item;
-        })
+        }),
       );
     }
 
     // Library level: Topics
-    if (element.contextValue === 'library' && element.libraryName) {
+    if (element.contextValue === "library" && element.libraryName) {
       const libDocs = allDocs.filter((d) => d.library === element.libraryName);
       const topics = [...new Set(libDocs.map((d) => d.topic))].sort();
 
@@ -120,46 +135,57 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
         topics.map((topic) => {
           const topicDocs = libDocs.filter((d) => d.topic === topic);
 
-          const item = new BrainTreeItem(topic, vscode.TreeItemCollapsibleState.Collapsed);
-          item.iconPath = new vscode.ThemeIcon('symbol-folder');
-          item.contextValue = 'topic';
-          item.description = `${topicDocs.length}`;
+          const item = new BrainTreeItem(
+            topic,
+            vscode.TreeItemCollapsibleState.Collapsed,
+          );
+          item.iconPath = new vscode.ThemeIcon("tag");
+          item.contextValue = "topic";
+          item.description = `${topicDocs.length} docs`;
           item.domainName = element.domainName;
           item.libraryName = element.libraryName;
           item.topicName = topic;
           item.docCategory = this.category;
           item.tooltip = `${topic} - ${topicDocs.length} doc(s)`;
           return item;
-        })
+        }),
       );
     }
 
     // Topic level: Docs
-    if (element.contextValue === 'topic' && element.libraryName && element.topicName) {
+    if (
+      element.contextValue === "topic" &&
+      element.libraryName &&
+      element.topicName
+    ) {
       const docs = allDocs.filter(
-        (d) => d.library === element.libraryName && d.topic === element.topicName
+        (d) =>
+          d.library === element.libraryName && d.topic === element.topicName,
       );
 
       return Promise.resolve(
         docs.map((doc) => {
-          const item = new BrainTreeItem(doc.title, vscode.TreeItemCollapsibleState.None);
-          item.iconPath = new vscode.ThemeIcon('file-text');
-          item.contextValue = 'doc';
-          item.entryType = 'doc';
+          const item = new BrainTreeItem(
+            doc.title,
+            vscode.TreeItemCollapsibleState.None,
+          );
+          item.iconPath = new vscode.ThemeIcon("note");
+          item.contextValue = "doc";
+          item.entryType = "doc";
           item.entryId = doc.id;
           item.entryData = doc;
           item.docCategory = this.category;
           item.tooltip = new vscode.MarkdownString(
             `**${doc.title}**\n\n` +
-              `${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}`
+              `${doc.content.substring(0, 200)}${doc.content.length > 200 ? "..." : ""}`,
           );
           item.command = {
-            command: 'whytcard-brain.viewEntry',
-            title: 'Voir',
+            command: "whytcard-brain.viewEntry",
+            title: "Voir",
             arguments: [item],
           };
           return item;
-        })
+        }),
       );
     }
 
@@ -168,13 +194,13 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
 
   private getDomainIcon(domain: string): string {
     const icons: Record<string, string> = {
-      website: 'globe',
-      mobile: 'device-mobile',
-      backend: 'server',
-      devops: 'cloud',
-      general: 'symbol-misc',
+      website: "browser",
+      mobile: "device-mobile",
+      backend: "server-process",
+      devops: "cloud-upload",
+      general: "library",
     };
-    return icons[domain] || 'folder';
+    return icons[domain] || "folder";
   }
 }
 
@@ -184,19 +210,19 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
 
 export class InstructionsTreeProvider extends CategoryTreeProvider {
   constructor() {
-    super('instruction');
+    super("instruction");
   }
 }
 
 export class DocumentationTreeProvider extends CategoryTreeProvider {
   constructor() {
-    super('documentation');
+    super("documentation");
   }
 }
 
 export class ContextTreeProvider extends CategoryTreeProvider {
   constructor() {
-    super('project');
+    super("project");
   }
 }
 
@@ -205,7 +231,9 @@ export class ContextTreeProvider extends CategoryTreeProvider {
 // =====================
 
 export class StatsTreeProvider implements vscode.TreeDataProvider<BrainTreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<BrainTreeItem | undefined | null | void>();
+  private _onDidChangeTreeData = new vscode.EventEmitter<
+    BrainTreeItem | undefined | null | void
+  >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   refresh(): void {
@@ -227,56 +255,69 @@ export class StatsTreeProvider implements vscode.TreeDataProvider<BrainTreeItem>
     const items: BrainTreeItem[] = [];
 
     // Database stats
-    const dbItem = new BrainTreeItem('Base de donnees', vscode.TreeItemCollapsibleState.None);
-    dbItem.iconPath = new vscode.ThemeIcon('database');
+    const dbItem = new BrainTreeItem(
+      "Base de donnees",
+      vscode.TreeItemCollapsibleState.None,
+    );
+    dbItem.iconPath = new vscode.ThemeIcon("database");
     dbItem.description = `${stats.docs} docs, ${stats.pitfalls} bugs, ${stats.dbSizeKb} KB`;
-    dbItem.contextValue = 'stat';
-    dbItem.entryType = 'stat';
+    dbItem.contextValue = "stat";
+    dbItem.entryType = "stat";
     items.push(dbItem);
 
     // Usage stats - Tool calls
-    const toolsItem = new BrainTreeItem('Appels outils', vscode.TreeItemCollapsibleState.None);
-    toolsItem.iconPath = new vscode.ThemeIcon('tools');
+    const toolsItem = new BrainTreeItem(
+      "Appels outils",
+      vscode.TreeItemCollapsibleState.None,
+    );
+    toolsItem.iconPath = new vscode.ThemeIcon("tools");
     toolsItem.description = `search: ${usage.searchCount}, store: ${usage.storeDocCount}, pitfall: ${usage.storePitfallCount}`;
-    toolsItem.contextValue = 'stat';
-    toolsItem.entryType = 'stat';
+    toolsItem.contextValue = "stat";
+    toolsItem.entryType = "stat";
     items.push(toolsItem);
 
     // New tools
-    const newToolsItem = new BrainTreeItem('Nouveaux outils', vscode.TreeItemCollapsibleState.None);
-    newToolsItem.iconPath = new vscode.ThemeIcon('rocket');
+    const newToolsItem = new BrainTreeItem(
+      "Nouveaux outils",
+      vscode.TreeItemCollapsibleState.None,
+    );
+    newToolsItem.iconPath = new vscode.ThemeIcon("rocket");
     newToolsItem.description = `instructions: ${usage.getInstructionsCount}, context: ${usage.getContextCount}`;
-    newToolsItem.contextValue = 'stat';
-    newToolsItem.entryType = 'stat';
+    newToolsItem.contextValue = "stat";
+    newToolsItem.entryType = "stat";
     items.push(newToolsItem);
 
     // Last used
     const lastUsedItem = new BrainTreeItem(
-      'Derniere utilisation',
-      vscode.TreeItemCollapsibleState.None
+      "Derniere utilisation",
+      vscode.TreeItemCollapsibleState.None,
     );
-    lastUsedItem.iconPath = new vscode.ThemeIcon('clock');
-    lastUsedItem.description = usage.lastUsed
-      ? new Date(usage.lastUsed).toLocaleString('fr-FR')
-      : 'Jamais';
-    lastUsedItem.contextValue = 'stat';
-    lastUsedItem.entryType = 'stat';
+    lastUsedItem.iconPath = new vscode.ThemeIcon("clock");
+    lastUsedItem.description =
+      usage.lastUsed ?
+        new Date(usage.lastUsed).toLocaleString("fr-FR")
+      : "Jamais";
+    lastUsedItem.contextValue = "stat";
+    lastUsedItem.entryType = "stat";
     items.push(lastUsedItem);
 
     // Errors
     if (usage.errors.length > 0) {
-      const errorsItem = new BrainTreeItem('Erreurs', vscode.TreeItemCollapsibleState.None);
-      errorsItem.iconPath = new vscode.ThemeIcon('error');
+      const errorsItem = new BrainTreeItem(
+        "Erreurs",
+        vscode.TreeItemCollapsibleState.None,
+      );
+      errorsItem.iconPath = new vscode.ThemeIcon("error");
       errorsItem.description = `${usage.errors.length} erreur(s)`;
       errorsItem.tooltip = new vscode.MarkdownString(
         `**Dernieres erreurs:**\n\n` +
           usage.errors
             .slice(-5)
             .map((e) => `- ${e}`)
-            .join('\n')
+            .join("\n"),
       );
-      errorsItem.contextValue = 'stat';
-      errorsItem.entryType = 'stat';
+      errorsItem.contextValue = "stat";
+      errorsItem.entryType = "stat";
       items.push(errorsItem);
     }
 

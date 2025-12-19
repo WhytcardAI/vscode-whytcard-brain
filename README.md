@@ -1,10 +1,12 @@
 # WhytCard Brain
 
-**Local knowledge base for GitHub Copilot** — Store instructions, documentation, and project context to supercharge your AI-assisted development.
+**Local knowledge base for AI assistants** — Store instructions, documentation, and project context to supercharge your AI-assisted development.
+
+Works with **GitHub Copilot** (VS Code) and **Cascade** (Windsurf).
 
 ## Features
 
-### 🧠 Copilot Integration
+### 🧠 AI Integration
 
 WhytCard Brain registers **Language Model Tools** that Copilot automatically uses during conversations:
 
@@ -112,18 +114,45 @@ WhytCard Brain uses **SQLite** (via sql.js WASM) for local storage:
 - Fully local — no cloud sync, no API calls
 - Export/import via JSON
 
-## MCP Server Integration
+## Windsurf / Cascade Integration
 
-WhytCard Brain can share its database with a Python MCP server for enhanced capabilities:
+WhytCard Brain includes an **MCP server** for Windsurf Cascade:
 
-1. Set `BRAIN_DB_PATH` environment variable in MCP config
-2. The MCP server will read/write to the same database
-3. Both VS Code extension and MCP tools stay in sync
+### Setup
+
+1. Build the extension: `npm run build`
+2. Add to `~/.codeium/windsurf-next/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "whytcard-brain": {
+      "command": "node",
+      "args": ["path/to/vscode-whytcard-brain/dist/mcp-server.cjs"],
+      "env": {
+        "BRAIN_DB_PATH": "path/to/brain.db"
+      }
+    }
+  }
+}
+```
+
+3. Restart Windsurf
+
+### MCP Tools
+
+| Tool           | Description                               |
+| -------------- | ----------------------------------------- |
+| `brainConsult` | Load instructions + context + search docs |
+| `brainSave`    | Store new documentation                   |
+| `brainBug`     | Record bugs and solutions                 |
+| `brainSession` | Log session summaries                     |
+| `brainSearch`  | Search the knowledge base                 |
 
 ## Requirements
 
-- VS Code 1.95.0 or later
-- GitHub Copilot extension
+- VS Code 1.89.0+ or Windsurf
+- GitHub Copilot (VS Code) or Cascade (Windsurf)
 
 ## Contributing
 

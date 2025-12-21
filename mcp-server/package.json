@@ -1,0 +1,38 @@
+{
+  "name": "whytcard-brain-mcp",
+  "version": "1.1.0",
+  "description": "MCP server for WhytCard Brain - Local knowledge base for AI assistants (Windsurf Cascade, Claude, etc.)",
+  "author": "WhytCard",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whytcard/vscode-whytcard-brain"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "knowledge-base",
+    "windsurf",
+    "cascade",
+    "claude",
+    "copilot"
+  ],
+  "type": "module",
+  "main": "dist/mcp-server.cjs",
+  "bin": {
+    "whytcard-brain-mcp": "./dist/mcp-server.cjs"
+  },
+  "files": [
+    "dist/mcp-server.cjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "sql.js": "^1.13.0",
+    "zod": "^3.23.0"
+  }
+}

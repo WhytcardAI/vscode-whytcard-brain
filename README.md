@@ -116,12 +116,42 @@ WhytCard Brain uses **SQLite** (via sql.js WASM) for local storage:
 
 ## Windsurf / Cascade Integration
 
-WhytCard Brain includes an **MCP server** for Windsurf Cascade:
+WhytCard Brain includes an **MCP server** for Windsurf Cascade.
 
-### Setup
+### Quick Setup (npm)
 
-1. Build the extension: `npm run build`
-2. Add to `~/.codeium/windsurf-next/mcp_config.json`:
+```bash
+npx whytcard-brain-mcp
+```
+
+Add to `~/.codeium/windsurf-next/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "whytcard-brain": {
+      "command": "npx",
+      "args": ["-y", "whytcard-brain-mcp"],
+      "env": {
+        "BRAIN_STRICT_MODE": "1",
+        "BRAIN_STRICT_REQUIRE_SOURCES": "1"
+      },
+      "alwaysAllow": [
+        "brainConsult",
+        "brainSearch",
+        "brainSave",
+        "brainBug",
+        "brainSession"
+      ]
+    }
+  }
+}
+```
+
+### Manual Setup (from source)
+
+1. Build: `npm run build`
+2. Add to `mcp_config.json`:
 
 ```json
 {
@@ -137,17 +167,27 @@ WhytCard Brain includes an **MCP server** for Windsurf Cascade:
 }
 ```
 
-3. Restart Windsurf
+### Strict Mode
+
+Enable strict mode to ensure AI responses are grounded in official documentation:
+
+| Variable                       | Description                                              |
+| ------------------------------ | -------------------------------------------------------- |
+| `BRAIN_REQUIRE_CONSULT`        | Require `brainConsult` before other tools (default: `1`) |
+| `BRAIN_STRICT_MODE`            | Block if no docs found (default: `0`)                    |
+| `BRAIN_STRICT_REQUIRE_SOURCES` | Require docs with source URLs (default: `1`)             |
+| `BRAIN_CONSULT_TTL_MS`         | Consult validity in ms (default: `1200000` = 20min)      |
 
 ### MCP Tools
 
-| Tool           | Description                               |
-| -------------- | ----------------------------------------- |
-| `brainConsult` | Load instructions + context + search docs |
-| `brainSave`    | Store new documentation                   |
-| `brainBug`     | Record bugs and solutions                 |
-| `brainSession` | Log session summaries                     |
-| `brainSearch`  | Search the knowledge base                 |
+| Tool            | Description                               |
+| --------------- | ----------------------------------------- |
+| `brainConsult`  | Load instructions + context + search docs |
+| `brainSave`     | Store new documentation                   |
+| `brainBug`      | Record bugs and solutions                 |
+| `brainSession`  | Log session summaries                     |
+| `brainSearch`   | Search the knowledge base                 |
+| `brainValidate` | Validate response is grounded in docs     |
 
 ## Requirements
 

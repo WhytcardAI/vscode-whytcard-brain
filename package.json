@@ -559,19 +559,19 @@
     "viewsWelcome": [
       {
         "view": "whytcard-brain.instructions",
-        "contents": "No instructions yet.\n[Add Instruction](command:whytcard-brain.addDoc)"
+        "contents": "📋 **Instructions**\nDefine coding rules, conventions, and mandatory guidelines that Copilot will follow.\n\n[$(add) Add Instruction](command:whytcard-brain.addDoc)\n\n💡 Tip: Instructions are loaded automatically when you use @brain or brainConsult."
       },
       {
         "view": "whytcard-brain.documentation",
-        "contents": "No documentation yet.\n[Add Documentation](command:whytcard-brain.addDoc)"
+        "contents": "📚 **Documentation**\nStore API references, code examples, and framework guides.\n\n[$(add) Add Documentation](command:whytcard-brain.addDoc)\n[$(search) Search](command:whytcard-brain.search)\n\n💡 Tip: Use brainSave to add docs from external sources with URLs."
       },
       {
         "view": "whytcard-brain.context",
-        "contents": "No context yet.\n[Add Context](command:whytcard-brain.addDoc)"
+        "contents": "🎯 **Project Context**\nDocument your architecture, tech stack, and decisions.\n\n[$(add) Add Context](command:whytcard-brain.addDoc)\n\n💡 Tip: Keep this updated so Copilot understands your project."
       },
       {
         "view": "whytcard-brain.stats",
-        "contents": "Usage statistics for Brain tools used by Copilot."
+        "contents": "📊 **Usage Statistics**\nTrack how Copilot uses your Brain knowledge base.\n\nStats will appear once you start using Brain tools."
       }
     ],
     "configuration": {

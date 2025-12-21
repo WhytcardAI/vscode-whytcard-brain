@@ -32,6 +32,7 @@ execSync(
 console.log("3. Copying sql-wasm.wasm...");
 const distDir = path.join(__dirname, "..", "dist");
 const nodeModulesDir = path.join(__dirname, "..", "node_modules");
+const mcpServerDir = path.join(__dirname, "..", "mcp-server", "dist");
 
 if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir, { recursive: true });
@@ -48,7 +49,21 @@ if (fs.existsSync(wasmSrc)) {
   process.exit(1);
 }
 
+// 4. Copy MCP server to mcp-server/dist for npm package
+console.log("4. Preparing MCP npm package...");
+if (!fs.existsSync(mcpServerDir)) {
+  fs.mkdirSync(mcpServerDir, { recursive: true });
+}
+fs.copyFileSync(
+  path.join(distDir, "mcp-server.cjs"),
+  path.join(mcpServerDir, "mcp-server.cjs"),
+);
+fs.copyFileSync(wasmDest, path.join(mcpServerDir, "sql-wasm.wasm"));
+console.log("  - Copied mcp-server.cjs to mcp-server/dist/");
+console.log("  - Copied sql-wasm.wasm to mcp-server/dist/");
+
 console.log("✓ Build completed!");
 console.log("  - dist/extension.js");
 console.log("  - dist/mcp-server.cjs");
 console.log("  - dist/sql-wasm.wasm");
+console.log("  - mcp-server/dist/mcp-server.cjs (npm package)");

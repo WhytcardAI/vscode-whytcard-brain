@@ -47,9 +47,25 @@ Documentation is automatically grouped by domain:
 
 ## Installation
 
-1. Download the `.vsix` file
-2. In VS Code: `Extensions` → `...` → `Install from VSIX...`
-3. Reload VS Code
+### Quick Install
+
+1. **Install the extension:**
+
+   ```bash
+   npm run build
+   npx vsce package
+   code --install-extension whytcard-brain-1.1.0.vsix
+   ```
+
+2. **Auto-configure MCP (Windsurf/Cursor only):**
+   - A notification will appear after 3 seconds
+   - Click **"Configure Now"** to auto-setup the MCP server
+   - Restart your editor when prompted
+   - ✅ Done! Brain is ready to use
+
+**VS Code users:** No additional setup needed - Brain works via Language Model Tools with GitHub Copilot.
+
+📖 **Detailed instructions:** See [INSTALL.md](./INSTALL.md) for manual configuration, troubleshooting, and platform-specific details.
 
 ## Usage
 

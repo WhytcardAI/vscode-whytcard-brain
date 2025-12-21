@@ -26,23 +26,7 @@
     "context"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onView:whytcard-brain.instructions",
-    "onView:whytcard-brain.documentation",
-    "onView:whytcard-brain.context",
-    "onView:whytcard-brain.stats",
-    "onCommand:whytcard-brain.search",
-    "onCommand:whytcard-brain.installCopilotInstructions",
-    "onChatParticipant:whytcard-brain.brain",
-    "onLanguageModelTool:whytcard-brain_getInstructions",
-    "onLanguageModelTool:whytcard-brain_getContext",
-    "onLanguageModelTool:whytcard-brain_searchDocs",
-    "onLanguageModelTool:whytcard-brain_consult",
-    "onLanguageModelTool:whytcard-brain_storeDoc",
-    "onLanguageModelTool:whytcard-brain_storePitfall",
-    "onLanguageModelTool:whytcard-brain_logSession",
-    "onLanguageModelTool:whytcard-brain_initProject",
-    "onLanguageModelTool:whytcard-brain_analyzeError"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -481,6 +465,18 @@
         "command": "whytcard-brain.editEntry",
         "title": "Edit",
         "icon": "$(edit)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.setupMcp",
+        "title": "Configure MCP Server (Windsurf/Cursor)",
+        "icon": "$(server)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.mcpStatus",
+        "title": "Show MCP Status",
+        "icon": "$(info)",
         "category": "Brain"
       }
     ],

@@ -27,10 +27,12 @@ import {
   mergeBrainInstructionsBlock,
 } from "./utils/copilotUtils";
 import { BrainWebviewPanel } from "./views/webviewPanel";
+import { McpSetupService } from "./services/mcpSetupService";
 
 let statusBarItem: vscode.StatusBarItem;
 let dbWatcher: fs.FSWatcher | undefined;
 let refreshInterval: NodeJS.Timeout | undefined;
+let mcpSetupService: McpSetupService;
 
 function isCopilotAvailable(): boolean {
   return (
@@ -149,6 +151,17 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   console.log("Database connected successfully!");
+
+  // ====== MCP SETUP SERVICE ======
+  // Initialize MCP setup service
+  mcpSetupService = new McpSetupService(context);
+
+  // Check and prompt for MCP configuration if needed
+  setTimeout(() => {
+    if (mcpSetupService.shouldShowMcpPrompt()) {
+      mcpSetupService.promptMcpSetup().catch(console.error);
+    }
+  }, 3000); // Wait 3s after activation
 
   // ====== LANGUAGE MODEL TOOLS ======
   // Register tools AFTER DB is connected
@@ -511,6 +524,50 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       },
     ),
+
+    // Configure MCP Server
+    vscode.commands.registerCommand("whytcard-brain.setupMcp", async () => {
+      const result = await mcpSetupService.setupMcpServer();
+
+      if (result.success) {
+        vscode.window
+          .showInformationMessage(result.message, "Restart Now")
+          .then((selection) => {
+            if (selection === "Restart Now") {
+              vscode.commands.executeCommand("workbench.action.reloadWindow");
+            }
+          });
+      } else {
+        vscode.window.showErrorMessage(result.message);
+      }
+    }),
+
+    // Show MCP Status
+    vscode.commands.registerCommand("whytcard-brain.mcpStatus", async () => {
+      const status = await mcpSetupService.getMcpStatus();
+
+      const message = [
+        `Environment: ${status.environment}`,
+        `MCP Supported: ${status.supported ? "Yes" : "No"}`,
+        `Configured: ${status.configured ? "Yes" : "No"}`,
+        status.configPath ? `Config: ${status.configPath}` : "",
+        `Database: ${status.dbPath}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      if (status.supported && !status.configured) {
+        vscode.window
+          .showInformationMessage(message, "Configure Now")
+          .then((selection) => {
+            if (selection === "Configure Now") {
+              vscode.commands.executeCommand("whytcard-brain.setupMcp");
+            }
+          });
+      } else {
+        vscode.window.showInformationMessage(message);
+      }
+    }),
   );
 
   // Views

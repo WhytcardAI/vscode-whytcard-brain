@@ -365,6 +365,135 @@
             "error"
           ]
         }
+      },
+      {
+        "name": "whytcard-brain_templateSearch",
+        "tags": [
+          "template",
+          "code",
+          "reusable",
+          "brain"
+        ],
+        "displayName": "Search Templates",
+        "toolReferenceName": "brainTemplateSearch",
+        "modelDescription": "Search saved code templates (snippets, files, multi-file structures). Use this when you need to reuse common patterns instead of regenerating code.",
+        "userDescription": "Search code templates",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(file-code)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query (template name, description, or tag)"
+            },
+            "framework": {
+              "type": "string",
+              "description": "Filter by framework (optional): nextjs, react, express, etc."
+            },
+            "type": {
+              "type": "string",
+              "description": "Filter by type (optional)",
+              "enum": [
+                "snippet",
+                "file",
+                "multifile"
+              ]
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "whytcard-brain_templateSave",
+        "tags": [
+          "template",
+          "code",
+          "save",
+          "brain"
+        ],
+        "displayName": "Save Template",
+        "toolReferenceName": "brainTemplateSave",
+        "modelDescription": "Save a reusable code template for future use. Use this to store patterns you generate frequently (components, API routes, config files, etc.).",
+        "userDescription": "Save code template",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(save)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Unique template name (e.g., 'react-component', 'api-route')"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this template does"
+            },
+            "type": {
+              "type": "string",
+              "description": "Template type",
+              "enum": [
+                "snippet",
+                "file",
+                "multifile"
+              ]
+            },
+            "content": {
+              "type": "string",
+              "description": "Template content - code for snippet/file, JSON structure for multifile"
+            },
+            "framework": {
+              "type": "string",
+              "description": "Framework (optional): nextjs, react, express, etc."
+            },
+            "language": {
+              "type": "string",
+              "description": "Programming language (optional): typescript, javascript, python, etc."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Tags for categorization (optional)"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "type",
+            "content"
+          ]
+        }
+      },
+      {
+        "name": "whytcard-brain_templateApply",
+        "tags": [
+          "template",
+          "code",
+          "apply",
+          "brain"
+        ],
+        "displayName": "Apply Template",
+        "toolReferenceName": "brainTemplateApply",
+        "modelDescription": "Get the full content of a template to apply it. Increments usage count automatically.",
+        "userDescription": "Apply code template",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(run)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Template name to apply"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
       }
     ],
     "viewsContainers": {
@@ -391,6 +520,11 @@
         {
           "id": "whytcard-brain.context",
           "name": "Context",
+          "icon": "media/brain.svg"
+        },
+        {
+          "id": "whytcard-brain.templates",
+          "name": "Templates",
           "icon": "media/brain.svg"
         },
         {
@@ -478,6 +612,30 @@
         "title": "Show MCP Status",
         "icon": "$(info)",
         "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.addTemplate",
+        "title": "Add Template",
+        "icon": "$(add)",
+        "category": "Brain Templates"
+      },
+      {
+        "command": "whytcard-brain.viewTemplate",
+        "title": "View Template",
+        "icon": "$(eye)",
+        "category": "Brain Templates"
+      },
+      {
+        "command": "whytcard-brain.deleteTemplate",
+        "title": "Delete Template",
+        "icon": "$(trash)",
+        "category": "Brain Templates"
+      },
+      {
+        "command": "whytcard-brain.applyTemplate",
+        "title": "Apply Template",
+        "icon": "$(run)",
+        "category": "Brain Templates"
       }
     ],
     "menus": {

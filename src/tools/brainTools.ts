@@ -36,6 +36,26 @@ interface StorePitfallInput {
   code?: string;
 }
 
+interface TemplateSearchInput {
+  query: string;
+  framework?: string;
+  type?: "snippet" | "file" | "multifile";
+}
+
+interface TemplateSaveInput {
+  name: string;
+  description: string;
+  type: "snippet" | "file" | "multifile";
+  content: string;
+  framework?: string;
+  language?: string;
+  tags?: string[];
+}
+
+interface TemplateApplyInput {
+  name: string;
+}
+
 // Pas d'input requis pour getInstructions et getContext
 interface GetInstructionsInput {
   // vide - retourne toutes les instructions
@@ -278,9 +298,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
       const docsLimit =
         typeof maxDocs === "number" ? Math.max(1, Math.min(10, maxDocs)) : 5;
       const pitfallsLimit =
-        typeof maxPitfalls === "number"
-          ? Math.max(0, Math.min(10, maxPitfalls))
-          : 3;
+        typeof maxPitfalls === "number" ?
+          Math.max(0, Math.min(10, maxPitfalls))
+        : 3;
 
       let result = `## Brain consult\n\n`;
       result += `**Query:** ${query}\n`;
@@ -305,9 +325,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
             result += `**Library:** ${doc.library} | **Topic:** ${doc.topic}\n\n`;
             // Keep it concise to avoid flooding the chat
             const content =
-              doc.content.length > 1200
-                ? doc.content.substring(0, 1200) + "\n\n... (truncated)"
-                : doc.content;
+              doc.content.length > 1200 ?
+                doc.content.substring(0, 1200) + "\n\n... (truncated)"
+              : doc.content;
             result += content + `\n\n---\n\n`;
           }
 
@@ -329,9 +349,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
             result += `#### ${doc.title}\n`;
             result += `**Scope:** ${doc.library} | **Topic:** ${doc.topic}\n\n`;
             const content =
-              doc.content.length > 1200
-                ? doc.content.substring(0, 1200) + "\n\n... (truncated)"
-                : doc.content;
+              doc.content.length > 1200 ?
+                doc.content.substring(0, 1200) + "\n\n... (truncated)"
+              : doc.content;
             result += content + `\n\n---\n\n`;
           }
 
@@ -348,11 +368,11 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       // If we already included instructions, avoid returning instruction docs again unless user explicitly asked.
       const docs =
-        includeInstr && !category
-          ? docsAll.filter(
-              (d) => (d.category || "documentation") !== "instruction",
-            )
-          : docsAll;
+        includeInstr && !category ?
+          docsAll.filter(
+            (d) => (d.category || "documentation") !== "instruction",
+          )
+        : docsAll;
 
       result += `### Local documentation (${docs.length})\n\n`;
       if (docs.length === 0) {
@@ -366,9 +386,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
           }
           result += `\n\n`;
           const content =
-            doc.content.length > 1500
-              ? doc.content.substring(0, 1500) + "\n\n... (truncated)"
-              : doc.content;
+            doc.content.length > 1500 ?
+              doc.content.substring(0, 1500) + "\n\n... (truncated)"
+            : doc.content;
           result += content + `\n\n`;
           if (doc.url) {
             result += `Source: ${doc.url}\n\n`;
@@ -754,7 +774,196 @@ class AnalyzeErrorTool implements vscode.LanguageModelTool<AnalyzeErrorInput> {
   }
 }
 
-// ... existing tools ...
+/**
+ * Outil pour rechercher des templates de code
+ */
+class TemplateSearchTool implements vscode.LanguageModelTool<TemplateSearchInput> {
+  async invoke(
+    options: vscode.LanguageModelToolInvocationOptions<TemplateSearchInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelToolResult> {
+    try {
+      trackUsage("searchCount");
+      const { query, framework, type } = options.input;
+      const service = getBrainService();
+
+      const templates = service.searchTemplates(query, framework, type);
+
+      if (templates.length === 0) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            `Aucun template trouvé pour "${query}". Tu peux en créer un avec whytcard-brain_templateSave.`,
+          ),
+        ]);
+      }
+
+      let result = `## 📄 Templates trouvés (${templates.length})\n\n`;
+
+      for (const t of templates.slice(0, 5)) {
+        result += `### ${t.name} (${t.type})\n`;
+        result += `**Description:** ${t.description}\n`;
+        if (t.framework) result += `**Framework:** ${t.framework}\n`;
+        if (t.language) result += `**Language:** ${t.language}\n`;
+        result += `**Utilisé:** ${t.usage_count || 0} fois\n`;
+        result += `**Aperçu:**\n\`\`\`\n${t.content.substring(0, 150)}${t.content.length > 150 ? "..." : ""}\n\`\`\`\n\n`;
+        result += `Utilise whytcard-brain_templateApply avec name="${t.name}" pour l'appliquer.\n\n`;
+      }
+
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(result),
+      ]);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      trackError(`templateSearch: ${errMsg}`);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(`Erreur de recherche: ${errMsg}`),
+      ]);
+    }
+  }
+
+  async prepareInvocation(
+    options: vscode.LanguageModelToolInvocationPrepareOptions<TemplateSearchInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.PreparedToolInvocation> {
+    return {
+      invocationMessage: `Recherche de templates pour "${options.input.query}"...`,
+    };
+  }
+}
+
+/**
+ * Outil pour sauvegarder un template de code
+ */
+class TemplateSaveTool implements vscode.LanguageModelTool<TemplateSaveInput> {
+  async invoke(
+    options: vscode.LanguageModelToolInvocationOptions<TemplateSaveInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelToolResult> {
+    try {
+      trackUsage("storeDocCount");
+      const { name, description, type, content, framework, language, tags } =
+        options.input;
+      const service = getBrainService();
+
+      const existing = service.getTemplateByName(name);
+      if (existing) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            `❌ Template "${name}" existe déjà. Utilise un nom différent.`,
+          ),
+        ]);
+      }
+
+      const tagsJson = tags ? JSON.stringify(tags) : undefined;
+
+      const template = service.addTemplate({
+        name,
+        description,
+        type,
+        content,
+        framework,
+        language,
+        tags: tagsJson,
+      });
+
+      if (template) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            `✅ Template "${name}" sauvegardé !\n` +
+              `Type: ${type}\n` +
+              `Framework: ${framework || "N/A"}\n\n` +
+              `Tu peux maintenant le réutiliser avec whytcard-brain_templateSearch.`,
+          ),
+        ]);
+      } else {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            "❌ Échec de la sauvegarde du template.",
+          ),
+        ]);
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      trackError(`templateSave: ${errMsg}`);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(`Erreur: ${errMsg}`),
+      ]);
+    }
+  }
+
+  async prepareInvocation(
+    options: vscode.LanguageModelToolInvocationPrepareOptions<TemplateSaveInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.PreparedToolInvocation> {
+    return {
+      invocationMessage: `Sauvegarde du template "${options.input.name}"...`,
+    };
+  }
+}
+
+/**
+ * Outil pour appliquer un template
+ */
+class TemplateApplyTool implements vscode.LanguageModelTool<TemplateApplyInput> {
+  async invoke(
+    options: vscode.LanguageModelToolInvocationOptions<TemplateApplyInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelToolResult> {
+    try {
+      trackUsage("searchCount");
+      const { name } = options.input;
+      const service = getBrainService();
+
+      const template = service.getTemplateByName(name);
+
+      if (!template) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            `❌ Template "${name}" introuvable. Utilise whytcard-brain_templateSearch pour trouver les templates disponibles.`,
+          ),
+        ]);
+      }
+
+      if (template.id) {
+        service.incrementTemplateUsage(template.id);
+      }
+
+      let result = `## ✅ Template: ${template.name}\n\n`;
+      result += `**Type:** ${template.type}\n`;
+      result += `**Description:** ${template.description}\n`;
+      if (template.framework)
+        result += `**Framework:** ${template.framework}\n`;
+      if (template.language) result += `**Language:** ${template.language}\n`;
+      result += `\n### Contenu\n\n`;
+
+      if (template.type === "multifile") {
+        result += `Structure multi-fichiers:\n\`\`\`json\n${template.content}\n\`\`\`\n\n`;
+        result += `Parse ce JSON et crée les fichiers correspondants.`;
+      } else {
+        result += `\`\`\`\n${template.content}\n\`\`\``;
+      }
+
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(result),
+      ]);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      trackError(`templateApply: ${errMsg}`);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(`Erreur: ${errMsg}`),
+      ]);
+    }
+  }
+
+  async prepareInvocation(
+    options: vscode.LanguageModelToolInvocationPrepareOptions<TemplateApplyInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.PreparedToolInvocation> {
+    return {
+      invocationMessage: `Application du template "${options.input.name}"...`,
+    };
+  }
+}
 
 /**
  * Enregistre tous les outils LM
@@ -783,10 +992,13 @@ export function registerBrainTools(context: vscode.ExtensionContext): void {
     lm.registerTool("whytcard-brain_logSession", new LogSessionTool()),
     lm.registerTool("whytcard-brain_initProject", new InitProjectTool()),
     lm.registerTool("whytcard-brain_analyzeError", new AnalyzeErrorTool()),
+    lm.registerTool("whytcard-brain_templateSearch", new TemplateSearchTool()),
+    lm.registerTool("whytcard-brain_templateSave", new TemplateSaveTool()),
+    lm.registerTool("whytcard-brain_templateApply", new TemplateApplyTool()),
   );
 
   console.log(
-    "Brain LM tools registered (9 tools) - Copilot peut maintenant les utiliser automatiquement",
+    "Brain LM tools registered (12 tools) - Copilot peut maintenant les utiliser automatiquement",
   );
 }
 

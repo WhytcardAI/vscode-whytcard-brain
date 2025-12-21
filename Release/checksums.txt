@@ -1,5 +1,15 @@
+SHA256 Checksums - WhytCard Brain v1.1.0 FINAL
+===============================================
 
-Algorithm Hash
---------- ----
-SHA256    15A3F9755E82FA80BE1EE1F88C3C57842294EC4DB061DAA1D3E6CB965B3C3F62
+whytcard-brain-1.1.0.vsix:
+0F1D080D4F0F8A4FAC40161A16F8F0AD634F20FF82C9854D8A24C8F1EB077456
 
+Generated: 2024-12-21
+Package Size: 2.28MB (35 files)
+
+Features:
+- 12 Brain Tools (Copilot)
+- 9 MCP Tools (Windsurf/Cascade)
+- Templates System (autonomous agent)
+- Stats with templates count
+- MCP DB path priority: Windsurf - Next > Windsurf > VS Code

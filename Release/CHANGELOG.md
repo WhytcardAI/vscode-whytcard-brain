@@ -19,6 +19,18 @@ All notable changes to WhytCard Brain will be documented in this file.
 - `Brain: Configure MCP Server (Windsurf/Cursor)` - Manually trigger MCP configuration
 - `Brain: Show MCP Status` - Display current configuration status and environment details
 
+#### Templates/Snippets
+
+- **New Template View**: New view in the sidebar with organization by framework and type
+- **3 types of templates**: snippet (code), file (single file), multifile (complete structure)
+- **MCP Tools**: `brainTemplateSave`, `brainTemplateSearch`, `brainTemplateApply`
+- **Brain Tools**: `whytcard-brain_templateSearch`, `templateSave`, `templateApply`
+- **UI Commands**: Add Template, View Template, Delete Template, Apply Template
+- **Enriched Webview**: Visualize templates with metadata
+- **Usage Counter**: Statistics for each template
+- **Tag Support**: Filter by framework/language/type
+- **Total Autonomy**: Agent can manage its own reusable templates
+
 ### 🔧 Improvements
 
 #### Developer Experience

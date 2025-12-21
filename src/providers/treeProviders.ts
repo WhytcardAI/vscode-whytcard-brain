@@ -260,7 +260,7 @@ export class StatsTreeProvider implements vscode.TreeDataProvider<BrainTreeItem>
       vscode.TreeItemCollapsibleState.None,
     );
     dbItem.iconPath = new vscode.ThemeIcon("database");
-    dbItem.description = `${stats.docs} docs, ${stats.pitfalls} bugs, ${stats.dbSizeKb} KB`;
+    dbItem.description = `${stats.docs} docs, ${stats.pitfalls} bugs, ${stats.templates} templates, ${stats.dbSizeKb} KB`;
     dbItem.contextValue = "stat";
     dbItem.entryType = "stat";
     items.push(dbItem);

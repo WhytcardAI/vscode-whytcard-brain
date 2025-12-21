@@ -16,10 +16,15 @@ import {
   StatsTreeProvider,
 } from "./providers/treeProviders";
 import {
+  TemplatesTreeProvider,
+  TemplateTreeItem,
+} from "./providers/templatesTreeProvider";
+import {
   disposeBrainService,
   getBrainService,
   setStoragePath,
   type Doc,
+  type Template,
 } from "./services/brainService";
 import { registerBrainTools } from "./tools/brainTools";
 import {
@@ -60,10 +65,11 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
   );
 
-  // ====== SIDEBAR VIEWS (4 categories) ======
+  // ====== SIDEBAR VIEWS (5 categories) ======
   const instructionsProvider = new InstructionsTreeProvider();
   const documentationProvider = new DocumentationTreeProvider();
   const contextProvider = new ContextTreeProvider();
+  const templatesProvider = new TemplatesTreeProvider();
   const statsProvider = new StatsTreeProvider();
 
   const instructionsView = vscode.window.createTreeView(
@@ -86,6 +92,14 @@ export async function activate(context: vscode.ExtensionContext) {
     treeDataProvider: contextProvider,
     showCollapseAll: true,
   });
+
+  const templatesView = vscode.window.createTreeView(
+    "whytcard-brain.templates",
+    {
+      treeDataProvider: templatesProvider,
+      showCollapseAll: true,
+    },
+  );
 
   const statsView = vscode.window.createTreeView("whytcard-brain.stats", {
     treeDataProvider: statsProvider,
@@ -133,6 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
     instructionsProvider.refresh();
     documentationProvider.refresh();
     contextProvider.refresh();
+    templatesProvider.refresh();
     statsProvider.refresh();
     updateStatusBar();
   };
@@ -568,6 +583,109 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(message);
       }
     }),
+
+    // View Template
+    vscode.commands.registerCommand(
+      "whytcard-brain.viewTemplate",
+      (item: TemplateTreeItem) => {
+        if (item.templateData) {
+          BrainWebviewPanel.showTemplate(
+            context.extensionUri,
+            item.templateData,
+          );
+        }
+      },
+    ),
+
+    // Add Template
+    vscode.commands.registerCommand("whytcard-brain.addTemplate", async () => {
+      const name = await vscode.window.showInputBox({
+        prompt: "Template name",
+        placeHolder: "e.g., react-component",
+      });
+      if (!name) return;
+
+      const description = await vscode.window.showInputBox({
+        prompt: "Template description",
+        placeHolder: "React component template",
+      });
+      if (!description) return;
+
+      const type = await vscode.window.showQuickPick(
+        ["snippet", "file", "multifile"],
+        { placeHolder: "Template type" },
+      );
+      if (!type) return;
+
+      const content = await vscode.window.showInputBox({
+        prompt: "Content",
+        value: type === "multifile" ? '{"files": []}' : "",
+      });
+      if (!content) return;
+
+      const template = service.addTemplate({
+        name,
+        description,
+        type: type as Template["type"],
+        content,
+      });
+
+      if (template) {
+        vscode.window.showInformationMessage(`Template created!`);
+        refreshAll(true);
+      }
+    }),
+
+    // Delete Template
+    vscode.commands.registerCommand(
+      "whytcard-brain.deleteTemplate",
+      async (item: TemplateTreeItem) => {
+        if (!item.templateId) return;
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete template?`,
+          "Delete",
+        );
+
+        if (confirm === "Delete" && service.deleteTemplate(item.templateId)) {
+          vscode.window.showInformationMessage("Deleted");
+          refreshAll(true);
+        }
+      },
+    ),
+
+    // Apply Template
+    vscode.commands.registerCommand(
+      "whytcard-brain.applyTemplate",
+      async (item: TemplateTreeItem) => {
+        if (!item.templateData) return;
+
+        const template = item.templateData;
+        if (template.id) service.incrementTemplateUsage(template.id);
+
+        if (template.type === "snippet") {
+          await vscode.env.clipboard.writeText(template.content);
+          vscode.window.showInformationMessage("Copied to clipboard!");
+        } else if (template.type === "file") {
+          const fileName = await vscode.window.showInputBox({
+            prompt: "File name",
+          });
+          if (!fileName) return;
+
+          const folder = await pickWorkspaceFolder();
+          if (!folder) return;
+
+          const filePath = vscode.Uri.joinPath(folder.uri, fileName);
+          await vscode.workspace.fs.writeFile(
+            filePath,
+            Buffer.from(template.content, "utf8"),
+          );
+          vscode.window.showInformationMessage(`Created: ${fileName}`);
+        }
+
+        refreshAll(true);
+      },
+    ),
   );
 
   // Views
@@ -575,6 +693,7 @@ export async function activate(context: vscode.ExtensionContext) {
     instructionsView,
     documentationView,
     contextView,
+    templatesView,
     statsView,
     statusBarItem,
   );

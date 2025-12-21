@@ -4,7 +4,11 @@
  */
 
 import * as vscode from "vscode";
-import { getBrainService, type Doc } from "../services/brainService";
+import {
+  getBrainService,
+  type Doc,
+  type Template,
+} from "../services/brainService";
 
 export class BrainWebviewPanel {
   public static currentPanel: BrainWebviewPanel | undefined;
@@ -42,6 +46,26 @@ export class BrainWebviewPanel {
 
     BrainWebviewPanel.currentPanel = new BrainWebviewPanel(panel);
     BrainWebviewPanel.currentPanel._update(doc);
+  }
+
+  public static showTemplate(extensionUri: vscode.Uri, template: Template) {
+    const column = vscode.window.activeTextEditor?.viewColumn;
+
+    if (BrainWebviewPanel.currentPanel) {
+      BrainWebviewPanel.currentPanel._panel.reveal(column);
+      BrainWebviewPanel.currentPanel._updateTemplate(template);
+      return;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      "whytcardBrainView",
+      "WhytCard Brain Template",
+      column || vscode.ViewColumn.One,
+      { enableScripts: true },
+    );
+
+    BrainWebviewPanel.currentPanel = new BrainWebviewPanel(panel);
+    BrainWebviewPanel.currentPanel._updateTemplate(template);
   }
 
   public dispose() {
@@ -101,6 +125,128 @@ export class BrainWebviewPanel {
     this._currentDoc = doc;
     this._panel.title = doc.title;
     this._panel.webview.html = this._getHtml(doc);
+  }
+
+  private _updateTemplate(template: Template) {
+    this._panel.title = template.name;
+    this._panel.webview.html = this._getTemplateHtml(template);
+  }
+
+  private _getTemplateHtml(template: Template): string {
+    const tags = template.tags ? JSON.parse(template.tags) : [];
+    const isMultifile = template.type === "multifile";
+
+    let contentDisplay = "";
+    if (isMultifile) {
+      try {
+        const struct = JSON.parse(template.content);
+        contentDisplay = `<pre><code>${JSON.stringify(struct, null, 2)}</code></pre>`;
+      } catch {
+        contentDisplay = `<pre><code>${template.content}</code></pre>`;
+      }
+    } else {
+      contentDisplay = `<pre><code>${template.content}</code></pre>`;
+    }
+
+    return /* html */ `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--vscode-font-family);
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-editor-background);
+      padding: 24px;
+      line-height: 1.7;
+    }
+    h1 { font-size: 1.8em; margin-bottom: 12px; }
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .badge {
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .badge.type { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .badge.framework { background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+    .badge.language { background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+    .description {
+      font-size: 1.1em;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 24px;
+    }
+    .tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .tag {
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      background: var(--vscode-textBlockQuote-background);
+      border: 1px solid var(--vscode-textBlockQuote-border);
+    }
+    pre {
+      background: var(--vscode-textCodeBlock-background);
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      border: 1px solid var(--vscode-panel-border);
+    }
+    code {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 13px;
+    }
+    .stats {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--vscode-panel-border);
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+  </style>
+</head>
+<body>
+  <h1>📄 ${template.name}</h1>
+  
+  <div class="meta">
+    <span class="badge type">${template.type}</span>
+    ${template.framework ? `<span class="badge framework">${template.framework}</span>` : ""}
+    ${template.language ? `<span class="badge language">${template.language}</span>` : ""}
+  </div>
+
+  <div class="description">${template.description}</div>
+
+  ${
+    tags.length > 0 ?
+      `
+    <div class="tags">
+      ${tags.map((tag: string) => `<span class="tag">#${tag}</span>`).join("")}
+    </div>
+  `
+    : ""
+  }
+
+  <h3>Content</h3>
+  ${contentDisplay}
+
+  <div class="stats">
+    Used ${template.usage_count || 0} times • Created ${template.created_at || "unknown"}
+  </div>
+</body>
+</html>`;
   }
 
   private _getHtml(doc: Doc): string {

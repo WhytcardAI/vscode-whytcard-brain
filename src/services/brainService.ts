@@ -3,9 +3,9 @@
  * Database stored in extension's globalStorage
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+import * as fs from "fs";
+import * as path from "path";
+import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 
 // Types
 export interface Doc {
@@ -17,58 +17,72 @@ export interface Doc {
   content: string;
   source?: string;
   url?: string;
-  category?: string; // 'instruction' | 'documentation' | 'project'
+  category?: string; // 'instruction' | 'documentation' | 'project' | 'template'
   domain?: string; // 'website' | 'mobile' | 'backend' | 'devops' | 'general'
   created_at?: string;
+}
+
+export interface Template {
+  id?: number;
+  name: string;
+  description: string;
+  language?: string; // 'typescript' | 'javascript' | 'python' | etc.
+  framework?: string; // 'nextjs' | 'react' | 'express' | etc.
+  tags?: string; // JSON array of tags
+  type: "snippet" | "file" | "multifile"; // Type de template
+  content: string; // JSON pour multifile, code direct pour snippet/file
+  usage_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Auto-mapping des libraries vers leur domaine
 const LIBRARY_DOMAIN_MAP: Record<string, string> = {
   // Website / Frontend
-  nextjs: 'website',
-  react: 'website',
-  vue: 'website',
-  angular: 'website',
-  svelte: 'website',
-  tailwind: 'website',
-  shadcn: 'website',
-  'next-intl': 'website',
-  motion: 'website',
-  framer: 'website',
-  css: 'website',
-  html: 'website',
+  nextjs: "website",
+  react: "website",
+  vue: "website",
+  angular: "website",
+  svelte: "website",
+  tailwind: "website",
+  shadcn: "website",
+  "next-intl": "website",
+  motion: "website",
+  framer: "website",
+  css: "website",
+  html: "website",
   // Mobile
-  'react-native': 'mobile',
-  expo: 'mobile',
-  flutter: 'mobile',
-  swift: 'mobile',
-  kotlin: 'mobile',
+  "react-native": "mobile",
+  expo: "mobile",
+  flutter: "mobile",
+  swift: "mobile",
+  kotlin: "mobile",
   // Backend
-  node: 'backend',
-  express: 'backend',
-  fastify: 'backend',
-  nest: 'backend',
-  prisma: 'backend',
-  drizzle: 'backend',
-  postgres: 'backend',
-  mongodb: 'backend',
-  redis: 'backend',
+  node: "backend",
+  express: "backend",
+  fastify: "backend",
+  nest: "backend",
+  prisma: "backend",
+  drizzle: "backend",
+  postgres: "backend",
+  mongodb: "backend",
+  redis: "backend",
   // DevOps
-  docker: 'devops',
-  kubernetes: 'devops',
-  vercel: 'devops',
-  aws: 'devops',
-  github: 'devops',
+  docker: "devops",
+  kubernetes: "devops",
+  vercel: "devops",
+  aws: "devops",
+  github: "devops",
   // General
-  typescript: 'general',
-  javascript: 'general',
-  zod: 'general',
-  copilot: 'general',
+  typescript: "general",
+  javascript: "general",
+  zod: "general",
+  copilot: "general",
 };
 
 export function inferDomain(library: string): string {
   const key = normalizeForSearch(library);
-  return LIBRARY_DOMAIN_MAP[key] || 'general';
+  return LIBRARY_DOMAIN_MAP[key] || "general";
 }
 
 /**
@@ -77,11 +91,11 @@ export function inferDomain(library: string): string {
  * - les filtres de recherche (insensible à la casse/points/espaces)
  */
 function normalizeForSearch(value: string): string {
-  return (value || '')
+  return (value || "")
     .trim()
     .toLowerCase()
-    .replace(/[.\s]+/g, '')
-    .replace(/^nextjs$/, 'nextjs');
+    .replace(/[.\s]+/g, "")
+    .replace(/^nextjs$/, "nextjs");
 }
 
 export interface Pitfall {
@@ -98,6 +112,7 @@ export interface Pitfall {
 export interface BrainStats {
   docs: number;
   pitfalls: number;
+  templates: number;
   dbSizeKb: number;
 }
 
@@ -122,7 +137,9 @@ const usageStats: UsageStats = {
   errors: [],
 };
 
-export function trackUsage(tool: keyof Omit<UsageStats, 'lastUsed' | 'errors'>): void {
+export function trackUsage(
+  tool: keyof Omit<UsageStats, "lastUsed" | "errors">,
+): void {
   usageStats[tool]++;
   usageStats.lastUsed = new Date().toISOString();
 }
@@ -151,7 +168,7 @@ export function getStoragePath(): string | null {
 
 export class BrainService {
   private db: Database | null = null;
-  private dbPath: string = '';
+  private dbPath: string = "";
   private SQL: SqlJsStatic | null = null;
   private lastLoadedMtimeMs: number | null = null;
 
@@ -163,51 +180,51 @@ export class BrainService {
   public async connect(): Promise<boolean> {
     try {
       if (!storagePath) {
-        console.error('[BrainService] Storage path not set');
+        console.error("[BrainService] Storage path not set");
         return false;
       }
 
-      this.dbPath = path.join(storagePath, 'brain.db');
-      console.log('[BrainService] DB path:', this.dbPath);
+      this.dbPath = path.join(storagePath, "brain.db");
+      console.log("[BrainService] DB path:", this.dbPath);
 
       // Create directory if needed
       if (!fs.existsSync(storagePath)) {
-        console.log('[BrainService] Creating storage directory:', storagePath);
+        console.log("[BrainService] Creating storage directory:", storagePath);
         fs.mkdirSync(storagePath, { recursive: true });
       }
 
-      console.log('[BrainService] Loading sql.js WASM...');
+      console.log("[BrainService] Loading sql.js WASM...");
 
       // Locate the WASM file relative to the extension root
       // The build script copies sql-wasm.wasm to dist/
       // Since extension.js is in dist/, __dirname is dist/
-      const wasmPath = path.join(__dirname, 'sql-wasm.wasm');
-      console.log('[BrainService] WASM path:', wasmPath);
+      const wasmPath = path.join(__dirname, "sql-wasm.wasm");
+      console.log("[BrainService] WASM path:", wasmPath);
 
       this.SQL = await initSqlJs({
         locateFile: () => wasmPath,
       });
 
       if (fs.existsSync(this.dbPath)) {
-        console.log('[BrainService] Loading existing database...');
+        console.log("[BrainService] Loading existing database...");
         const filebuffer = fs.readFileSync(this.dbPath);
         this.db = new this.SQL.Database(filebuffer);
       } else {
-        console.log('[BrainService] Creating new database...');
+        console.log("[BrainService] Creating new database...");
         this.db = new this.SQL.Database();
         this.saveDatabase();
       }
 
       this.lastLoadedMtimeMs = this.getDbMtimeMs();
 
-      console.log('[BrainService] Initializing schema...');
+      console.log("[BrainService] Initializing schema...");
       this.initSchema();
-      console.log('[BrainService] Brain DB connected');
+      console.log("[BrainService] Brain DB connected");
       return true;
     } catch (error) {
-      console.error('[BrainService] Failed to connect to database:', error);
+      console.error("[BrainService] Failed to connect to database:", error);
       if (error instanceof Error) {
-        console.error('[BrainService] Error stack:', error.stack);
+        console.error("[BrainService] Error stack:", error.stack);
       }
       return false;
     }
@@ -221,7 +238,7 @@ export class BrainService {
       fs.writeFileSync(this.dbPath, buffer);
       this.lastLoadedMtimeMs = this.getDbMtimeMs();
     } catch (error) {
-      console.error('[BrainService] Error saving database:', error);
+      console.error("[BrainService] Error saving database:", error);
     }
   }
 
@@ -244,7 +261,7 @@ export class BrainService {
    */
   public reloadFromDisk(): boolean {
     if (!this.SQL || !this.dbPath) {
-      console.warn('[BrainService] Cannot reload: not initialized');
+      console.warn("[BrainService] Cannot reload: not initialized");
       return false;
     }
 
@@ -258,11 +275,11 @@ export class BrainService {
         // Create new instance from file
         this.db = new this.SQL.Database(filebuffer);
         this.lastLoadedMtimeMs = this.getDbMtimeMs();
-        console.log('[BrainService] Reloaded database from disk');
+        console.log("[BrainService] Reloaded database from disk");
         return true;
       }
     } catch (error) {
-      console.error('[BrainService] Error reloading database:', error);
+      console.error("[BrainService] Error reloading database:", error);
     }
     return false;
   }
@@ -314,6 +331,26 @@ export class BrainService {
       CREATE INDEX IF NOT EXISTS idx_pitfalls_library ON pitfalls(library);
     `);
 
+    // Templates table for code snippets and multi-file templates
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
+        language TEXT,
+        framework TEXT,
+        tags TEXT,
+        type TEXT NOT NULL DEFAULT 'snippet',
+        content TEXT NOT NULL,
+        usage_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_templates_framework ON templates(framework);
+      CREATE INDEX IF NOT EXISTS idx_templates_language ON templates(language);
+      CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(type);
+    `);
+
     // Compatibility table used by external tooling (e.g. MCP servers).
     // Safe to create even if unused by the extension.
     this.db.run(`
@@ -328,8 +365,10 @@ export class BrainService {
 
     // Migration: Add category column if it doesn't exist
     try {
-      this.db.run("ALTER TABLE docs ADD COLUMN category TEXT DEFAULT 'documentation'");
-      console.log('[BrainService] Added category column to docs table');
+      this.db.run(
+        "ALTER TABLE docs ADD COLUMN category TEXT DEFAULT 'documentation'",
+      );
+      console.log("[BrainService] Added category column to docs table");
     } catch (e) {
       // Column likely exists, ignore
     }
@@ -337,7 +376,7 @@ export class BrainService {
     // Migration: Add domain column if it doesn't exist
     try {
       this.db.run("ALTER TABLE docs ADD COLUMN domain TEXT DEFAULT 'general'");
-      console.log('[BrainService] Added domain column to docs table');
+      console.log("[BrainService] Added domain column to docs table");
       // Auto-fill domain for existing docs
       this.migrateDomainsForExistingDocs();
     } catch (e) {
@@ -364,12 +403,15 @@ export class BrainService {
   private migrateDomainsForExistingDocs(): void {
     if (!this.db) return;
     const docs = this.query<{ id: number; library: string }>(
-      "SELECT id, library FROM docs WHERE domain IS NULL OR domain = 'general'"
+      "SELECT id, library FROM docs WHERE domain IS NULL OR domain = 'general'",
     );
     for (const doc of docs) {
       const domain = inferDomain(doc.library);
-      if (domain !== 'general') {
-        this.db.run('UPDATE docs SET domain = ? WHERE id = ?', [domain, doc.id]);
+      if (domain !== "general") {
+        this.db.run("UPDATE docs SET domain = ? WHERE id = ?", [
+          domain,
+          doc.id,
+        ]);
       }
     }
   }
@@ -379,7 +421,9 @@ export class BrainService {
    */
   private ensureConnection(): boolean {
     if (!this.db) {
-      console.error('[BrainService] Database not connected. Call connect() first.');
+      console.error(
+        "[BrainService] Database not connected. Call connect() first.",
+      );
       return false;
     }
 
@@ -421,15 +465,18 @@ export class BrainService {
 
   public getDocsByLibrary(library: string): Doc[] {
     if (!this.ensureConnection()) return [];
-    return this.query<Doc>(`SELECT * FROM docs WHERE library = ? ORDER BY topic`, [library]);
+    return this.query<Doc>(
+      `SELECT * FROM docs WHERE library = ? ORDER BY topic`,
+      [library],
+    );
   }
 
   public getDocById(id: number): Doc | null {
     if (!this.ensureConnection()) return null;
-    return this.queryOne<Doc>('SELECT * FROM docs WHERE id = ?', [id]);
+    return this.queryOne<Doc>("SELECT * FROM docs WHERE id = ?", [id]);
   }
 
-  public addDoc(doc: Omit<Doc, 'id' | 'created_at'>): number | null {
+  public addDoc(doc: Omit<Doc, "id" | "created_at">): number | null {
     if (!this.ensureConnection()) return null;
 
     try {
@@ -445,19 +492,21 @@ export class BrainService {
           doc.topic,
           doc.title,
           doc.content,
-          doc.source || 'manual',
+          doc.source || "manual",
           doc.url || null,
-          doc.category || 'documentation',
+          doc.category || "documentation",
           domain,
-        ]
+        ],
       );
 
       // Get last ID
-      const result = this.queryOne<{ id: number }>('SELECT last_insert_rowid() as id');
+      const result = this.queryOne<{ id: number }>(
+        "SELECT last_insert_rowid() as id",
+      );
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
-      console.error('Error adding doc:', error);
+      console.error("Error adding doc:", error);
       return null;
     }
   }
@@ -466,11 +515,11 @@ export class BrainService {
     if (!this.ensureConnection()) return false;
 
     try {
-      this.db!.run('DELETE FROM docs WHERE id = ?', [id]);
+      this.db!.run("DELETE FROM docs WHERE id = ?", [id]);
       this.saveDatabase();
       return true;
     } catch (error) {
-      console.error('Error deleting doc:', error);
+      console.error("Error deleting doc:", error);
       return false;
     }
   }
@@ -478,7 +527,10 @@ export class BrainService {
   /**
    * Update an existing doc
    */
-  public updateDoc(id: number, updates: Partial<Omit<Doc, 'id' | 'created_at'>>): boolean {
+  public updateDoc(
+    id: number,
+    updates: Partial<Omit<Doc, "id" | "created_at">>,
+  ): boolean {
     if (!this.ensureConnection()) return false;
 
     try {
@@ -486,39 +538,39 @@ export class BrainService {
       const values: (string | number | null)[] = [];
 
       if (updates.title !== undefined) {
-        fields.push('title = ?');
+        fields.push("title = ?");
         values.push(updates.title);
       }
       if (updates.content !== undefined) {
-        fields.push('content = ?');
+        fields.push("content = ?");
         values.push(updates.content);
       }
       if (updates.library !== undefined) {
-        fields.push('library = ?');
+        fields.push("library = ?");
         values.push(updates.library);
       }
       if (updates.topic !== undefined) {
-        fields.push('topic = ?');
+        fields.push("topic = ?");
         values.push(updates.topic);
       }
       if (updates.version !== undefined) {
-        fields.push('version = ?');
+        fields.push("version = ?");
         values.push(updates.version);
       }
       if (updates.url !== undefined) {
-        fields.push('url = ?');
+        fields.push("url = ?");
         values.push(updates.url);
       }
       if (updates.category !== undefined) {
-        fields.push('category = ?');
+        fields.push("category = ?");
         values.push(updates.category || null);
       }
       if (updates.source !== undefined) {
-        fields.push('source = ?');
+        fields.push("source = ?");
         values.push(updates.source || null);
       }
       if (updates.domain !== undefined) {
-        fields.push('domain = ?');
+        fields.push("domain = ?");
         values.push(updates.domain || null);
       }
 
@@ -526,13 +578,13 @@ export class BrainService {
 
       values.push(id);
       this.db!.run(
-        `UPDATE docs SET ${fields.join(', ')} WHERE id = ?`,
-        values as (string | number | null)[]
+        `UPDATE docs SET ${fields.join(", ")} WHERE id = ?`,
+        values as (string | number | null)[],
       );
       this.saveDatabase();
       return true;
     } catch (error) {
-      console.error('Error updating doc:', error);
+      console.error("Error updating doc:", error);
       return false;
     }
   }
@@ -542,17 +594,16 @@ export class BrainService {
    */
   public findDoc(library: string, topic: string, title: string): Doc | null {
     if (!this.ensureConnection()) return null;
-    return this.queryOne<Doc>('SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?', [
-      library,
-      topic,
-      title,
-    ]);
+    return this.queryOne<Doc>(
+      "SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?",
+      [library, topic, title],
+    );
   }
 
   /**
    * Upsert: Update if exists, insert if not
    */
-  public upsertDoc(doc: Omit<Doc, 'id' | 'created_at'>): number | null {
+  public upsertDoc(doc: Omit<Doc, "id" | "created_at">): number | null {
     const existing = this.findDoc(doc.library, doc.topic, doc.title);
     if (existing && existing.id) {
       this.updateDoc(existing.id, doc);
@@ -568,11 +619,11 @@ export class BrainService {
     library: string,
     topic: string,
     title: string,
-    newContent: string
+    newContent: string,
   ): number | null {
     const existing = this.findDoc(library, topic, title);
     if (existing && existing.id) {
-      const updatedContent = existing.content + '\n\n---\n\n' + newContent;
+      const updatedContent = existing.content + "\n\n---\n\n" + newContent;
       this.updateDoc(existing.id, { content: updatedContent });
       return existing.id;
     }
@@ -582,8 +633,8 @@ export class BrainService {
       topic,
       title,
       content: newContent,
-      category: 'project',
-      source: 'copilot',
+      category: "project",
+      source: "copilot",
     });
   }
 
@@ -611,7 +662,7 @@ export class BrainService {
 
       return this.query<Doc>(sql, params);
     } catch (error) {
-      console.error('Error searching docs:', error);
+      console.error("Error searching docs:", error);
       return [];
     }
   }
@@ -619,7 +670,7 @@ export class BrainService {
   public getDocLibraries(): string[] {
     if (!this.ensureConnection()) return [];
     const rows = this.query<{ library: string }>(
-      'SELECT DISTINCT library FROM docs ORDER BY library'
+      "SELECT DISTINCT library FROM docs ORDER BY library",
     );
     return rows.map((r) => r.library);
   }
@@ -630,7 +681,7 @@ export class BrainService {
   public getAllInstructions(): Doc[] {
     if (!this.ensureConnection()) return [];
     return this.query<Doc>(
-      `SELECT * FROM docs WHERE category = 'instruction' ORDER BY library, topic`
+      `SELECT * FROM docs WHERE category = 'instruction' ORDER BY library, topic`,
     );
   }
 
@@ -640,7 +691,9 @@ export class BrainService {
   public getProjectContext(projectPath?: string): Doc[] {
     if (!this.ensureConnection()) return [];
     // For now, return all project docs. Could filter by path later.
-    return this.query<Doc>(`SELECT * FROM docs WHERE category = 'project' ORDER BY library, topic`);
+    return this.query<Doc>(
+      `SELECT * FROM docs WHERE category = 'project' ORDER BY library, topic`,
+    );
   }
 
   /**
@@ -648,9 +701,10 @@ export class BrainService {
    */
   public getDocsByCategory(category: string): Doc[] {
     if (!this.ensureConnection()) return [];
-    return this.query<Doc>(`SELECT * FROM docs WHERE category = ? ORDER BY library, topic`, [
-      category,
-    ]);
+    return this.query<Doc>(
+      `SELECT * FROM docs WHERE category = ? ORDER BY library, topic`,
+      [category],
+    );
   }
 
   // =====================
@@ -659,15 +713,19 @@ export class BrainService {
 
   public getAllPitfalls(): Pitfall[] {
     if (!this.ensureConnection()) return [];
-    return this.query<Pitfall>(`SELECT * FROM pitfalls ORDER BY count DESC, created_at DESC`);
+    return this.query<Pitfall>(
+      `SELECT * FROM pitfalls ORDER BY count DESC, created_at DESC`,
+    );
   }
 
   public getPitfallById(id: number): Pitfall | null {
     if (!this.ensureConnection()) return null;
-    return this.queryOne<Pitfall>('SELECT * FROM pitfalls WHERE id = ?', [id]);
+    return this.queryOne<Pitfall>("SELECT * FROM pitfalls WHERE id = ?", [id]);
   }
 
-  public addPitfall(pitfall: Omit<Pitfall, 'id' | 'count' | 'created_at'>): number | null {
+  public addPitfall(
+    pitfall: Omit<Pitfall, "id" | "count" | "created_at">,
+  ): number | null {
     if (!this.ensureConnection()) return null;
 
     try {
@@ -682,14 +740,16 @@ export class BrainService {
           pitfall.error || null,
           pitfall.library || null,
           pitfall.code || null,
-        ]
+        ],
       );
 
-      const result = this.queryOne<{ id: number }>('SELECT last_insert_rowid() as id');
+      const result = this.queryOne<{ id: number }>(
+        "SELECT last_insert_rowid() as id",
+      );
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
-      console.error('Error adding pitfall:', error);
+      console.error("Error adding pitfall:", error);
       return null;
     }
   }
@@ -698,11 +758,11 @@ export class BrainService {
     if (!this.ensureConnection()) return false;
 
     try {
-      this.db!.run('DELETE FROM pitfalls WHERE id = ?', [id]);
+      this.db!.run("DELETE FROM pitfalls WHERE id = ?", [id]);
       this.saveDatabase();
       return true;
     } catch (error) {
-      console.error('Error deleting pitfall:', error);
+      console.error("Error deleting pitfall:", error);
       return false;
     }
   }
@@ -719,10 +779,10 @@ export class BrainService {
         ORDER BY count DESC
         LIMIT 10
       `,
-        [likePattern, likePattern, likePattern, likePattern]
+        [likePattern, likePattern, likePattern, likePattern],
       );
     } catch (error) {
-      console.error('Error searching pitfalls:', error);
+      console.error("Error searching pitfalls:", error);
       return [];
     }
   }
@@ -731,10 +791,244 @@ export class BrainService {
     if (!this.ensureConnection()) return;
 
     try {
-      this.db!.run('UPDATE pitfalls SET count = count + 1 WHERE id = ?', [id]);
+      this.db!.run("UPDATE pitfalls SET count = count + 1 WHERE id = ?", [id]);
       this.saveDatabase();
     } catch (error) {
-      console.error('Error incrementing pitfall count:', error);
+      console.error("Error incrementing pitfall count:", error);
+    }
+  }
+
+  // ====== TEMPLATES METHODS ======
+
+  public getAllTemplates(): Template[] {
+    if (!this.ensureConnection()) return [];
+
+    try {
+      return this.query<Template>(
+        "SELECT * FROM templates ORDER BY usage_count DESC, created_at DESC",
+      );
+    } catch (error) {
+      console.error("Error getting all templates:", error);
+      return [];
+    }
+  }
+
+  public getTemplateById(id: number): Template | null {
+    if (!this.ensureConnection()) return null;
+
+    try {
+      const results = this.query<Template>(
+        "SELECT * FROM templates WHERE id = ?",
+        [id],
+      );
+      return results[0] || null;
+    } catch (error) {
+      console.error("Error getting template:", error);
+      return null;
+    }
+  }
+
+  public getTemplateByName(name: string): Template | null {
+    if (!this.ensureConnection()) return null;
+
+    try {
+      const results = this.query<Template>(
+        "SELECT * FROM templates WHERE name = ?",
+        [name],
+      );
+      return results[0] || null;
+    } catch (error) {
+      console.error("Error getting template by name:", error);
+      return null;
+    }
+  }
+
+  public searchTemplates(
+    query: string,
+    framework?: string,
+    language?: string,
+  ): Template[] {
+    if (!this.ensureConnection()) return [];
+
+    try {
+      const likePattern = `%${query}%`;
+      let sql = `
+        SELECT * FROM templates
+        WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)
+      `;
+      const params: any[] = [likePattern, likePattern, likePattern];
+
+      if (framework) {
+        sql += " AND framework = ?";
+        params.push(framework);
+      }
+
+      if (language) {
+        sql += " AND language = ?";
+        params.push(language);
+      }
+
+      sql += " ORDER BY usage_count DESC, created_at DESC LIMIT 20";
+
+      return this.query<Template>(sql, params);
+    } catch (error) {
+      console.error("Error searching templates:", error);
+      return [];
+    }
+  }
+
+  public addTemplate(
+    template: Omit<Template, "id" | "created_at" | "updated_at">,
+  ): Template | null {
+    if (!this.ensureConnection()) return null;
+
+    try {
+      const {
+        name,
+        description,
+        language,
+        framework,
+        tags,
+        type,
+        content,
+        usage_count,
+      } = template;
+
+      this.db!.run(
+        `INSERT INTO templates (name, description, language, framework, tags, type, content, usage_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          name,
+          description,
+          language || null,
+          framework || null,
+          tags || null,
+          type,
+          content,
+          usage_count || 0,
+        ],
+      );
+
+      this.saveDatabase();
+
+      const results = this.query<Template>(
+        "SELECT * FROM templates WHERE name = ?",
+        [name],
+      );
+      return results[0] || null;
+    } catch (error) {
+      console.error("Error adding template:", error);
+      return null;
+    }
+  }
+
+  public updateTemplate(id: number, updates: Partial<Template>): boolean {
+    if (!this.ensureConnection()) return false;
+
+    try {
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (updates.name !== undefined) {
+        fields.push("name = ?");
+        values.push(updates.name);
+      }
+      if (updates.description !== undefined) {
+        fields.push("description = ?");
+        values.push(updates.description);
+      }
+      if (updates.language !== undefined) {
+        fields.push("language = ?");
+        values.push(updates.language);
+      }
+      if (updates.framework !== undefined) {
+        fields.push("framework = ?");
+        values.push(updates.framework);
+      }
+      if (updates.tags !== undefined) {
+        fields.push("tags = ?");
+        values.push(updates.tags);
+      }
+      if (updates.type !== undefined) {
+        fields.push("type = ?");
+        values.push(updates.type);
+      }
+      if (updates.content !== undefined) {
+        fields.push("content = ?");
+        values.push(updates.content);
+      }
+
+      fields.push("updated_at = datetime('now')");
+
+      if (fields.length === 1) return false; // Only updated_at, no real changes
+
+      values.push(id);
+
+      this.db!.run(
+        `UPDATE templates SET ${fields.join(", ")} WHERE id = ?`,
+        values,
+      );
+
+      this.saveDatabase();
+      return true;
+    } catch (error) {
+      console.error("Error updating template:", error);
+      return false;
+    }
+  }
+
+  public deleteTemplate(id: number): boolean {
+    if (!this.ensureConnection()) return false;
+
+    try {
+      this.db!.run("DELETE FROM templates WHERE id = ?", [id]);
+      this.saveDatabase();
+      return true;
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      return false;
+    }
+  }
+
+  public incrementTemplateUsage(id: number): void {
+    if (!this.ensureConnection()) return;
+
+    try {
+      this.db!.run(
+        "UPDATE templates SET usage_count = usage_count + 1, updated_at = datetime('now') WHERE id = ?",
+        [id],
+      );
+      this.saveDatabase();
+    } catch (error) {
+      console.error("Error incrementing template usage:", error);
+    }
+  }
+
+  public getTemplatesByFramework(framework: string): Template[] {
+    if (!this.ensureConnection()) return [];
+
+    try {
+      return this.query<Template>(
+        "SELECT * FROM templates WHERE framework = ? ORDER BY usage_count DESC",
+        [framework],
+      );
+    } catch (error) {
+      console.error("Error getting templates by framework:", error);
+      return [];
+    }
+  }
+
+  public getTemplatesByType(type: Template["type"]): Template[] {
+    if (!this.ensureConnection()) return [];
+
+    try {
+      return this.query<Template>(
+        "SELECT * FROM templates WHERE type = ? ORDER BY usage_count DESC",
+        [type],
+      );
+    } catch (error) {
+      console.error("Error getting templates by type:", error);
+      return [];
     }
   }
 
@@ -744,15 +1038,23 @@ export class BrainService {
 
   public getStats(): BrainStats {
     if (!this.ensureConnection()) {
-      return { docs: 0, pitfalls: 0, dbSizeKb: 0 };
+      return { docs: 0, pitfalls: 0, templates: 0, dbSizeKb: 0 };
     }
 
     try {
-      const docsRes = this.queryOne<{ c: number }>('SELECT COUNT(*) as c FROM docs');
-      const pitfallsRes = this.queryOne<{ c: number }>('SELECT COUNT(*) as c FROM pitfalls');
+      const docsRes = this.queryOne<{ c: number }>(
+        "SELECT COUNT(*) as c FROM docs",
+      );
+      const pitfallsRes = this.queryOne<{ c: number }>(
+        "SELECT COUNT(*) as c FROM pitfalls",
+      );
+      const templatesRes = this.queryOne<{ c: number }>(
+        "SELECT COUNT(*) as c FROM templates",
+      );
 
       const docs = docsRes ? docsRes.c : 0;
       const pitfalls = pitfallsRes ? pitfallsRes.c : 0;
+      const templates = templatesRes ? templatesRes.c : 0;
 
       // Get file size
       let dbSizeKb = 0;
@@ -765,10 +1067,10 @@ export class BrainService {
         // Ignore file stat errors
       }
 
-      return { docs, pitfalls, dbSizeKb };
+      return { docs, pitfalls, templates, dbSizeKb };
     } catch (error) {
-      console.error('Error getting stats:', error);
-      return { docs: 0, pitfalls: 0, dbSizeKb: 0 };
+      console.error("Error getting stats:", error);
+      return { docs: 0, pitfalls: 0, templates: 0, dbSizeKb: 0 };
     }
   }
 

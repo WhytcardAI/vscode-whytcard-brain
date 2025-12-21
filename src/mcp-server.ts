@@ -198,6 +198,20 @@ interface Pitfall {
   created_at?: string;
 }
 
+interface Template {
+  id?: number;
+  name: string;
+  description: string;
+  language?: string;
+  framework?: string;
+  tags?: string;
+  type: "snippet" | "file" | "multifile";
+  content: string;
+  usage_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // =====================
 // Database Path Resolution
 // =====================
@@ -205,38 +219,9 @@ interface Pitfall {
 function getDefaultDbPath(): string {
   // VS Code extension stores DB in globalStorage: ~/<appdata>/whytcard.whytcard-brain/brain.db
   // We support multiple locations for flexibility
+  // Priority: Windsurf - Next > Windsurf > Code (most users use Windsurf)
   const candidates = [
-    // Windows: %APPDATA%\Code\User\globalStorage\whytcard.whytcard-brain\brain.db
-    path.join(
-      process.env.APPDATA || "",
-      "Code",
-      "User",
-      "globalStorage",
-      "whytcard.whytcard-brain",
-      "brain.db",
-    ),
-    // macOS: ~/Library/Application Support/Code/User/globalStorage/whytcard.whytcard-brain/brain.db
-    path.join(
-      os.homedir(),
-      "Library",
-      "Application Support",
-      "Code",
-      "User",
-      "globalStorage",
-      "whytcard.whytcard-brain",
-      "brain.db",
-    ),
-    // Linux: ~/.config/Code/User/globalStorage/whytcard.whytcard-brain/brain.db
-    path.join(
-      os.homedir(),
-      ".config",
-      "Code",
-      "User",
-      "globalStorage",
-      "whytcard.whytcard-brain",
-      "brain.db",
-    ),
-    // Windsurf (Codeium) paths
+    // Windsurf - Next (highest priority)
     path.join(
       process.env.APPDATA || "",
       "Windsurf - Next",
@@ -246,6 +231,25 @@ function getDefaultDbPath(): string {
       "brain.db",
     ),
     path.join(
+      os.homedir(),
+      "Library",
+      "Application Support",
+      "Windsurf - Next",
+      "User",
+      "globalStorage",
+      "whytcard.whytcard-brain",
+      "brain.db",
+    ),
+    // Windsurf (Codeium) paths
+    path.join(
+      process.env.APPDATA || "",
+      "Windsurf",
+      "User",
+      "globalStorage",
+      "whytcard.whytcard-brain",
+      "brain.db",
+    ),
+    path.join(
       process.env.APPDATA || "",
       "Windsurf",
       "User",
@@ -267,6 +271,34 @@ function getDefaultDbPath(): string {
       os.homedir(),
       ".config",
       "Windsurf",
+      "User",
+      "globalStorage",
+      "whytcard.whytcard-brain",
+      "brain.db",
+    ),
+    // VS Code paths (lower priority)
+    path.join(
+      process.env.APPDATA || "",
+      "Code",
+      "User",
+      "globalStorage",
+      "whytcard.whytcard-brain",
+      "brain.db",
+    ),
+    path.join(
+      os.homedir(),
+      "Library",
+      "Application Support",
+      "Code",
+      "User",
+      "globalStorage",
+      "whytcard.whytcard-brain",
+      "brain.db",
+    ),
+    path.join(
+      os.homedir(),
+      ".config",
+      "Code",
       "User",
       "globalStorage",
       "whytcard.whytcard-brain",
@@ -398,8 +430,24 @@ class BrainDbService {
         created_at TEXT DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
+        language TEXT,
+        framework TEXT,
+        tags TEXT,
+        type TEXT NOT NULL DEFAULT 'snippet',
+        content TEXT NOT NULL,
+        usage_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
       CREATE INDEX IF NOT EXISTS idx_docs_library ON docs(library);
       CREATE INDEX IF NOT EXISTS idx_pitfalls_library ON pitfalls(library);
+      CREATE INDEX IF NOT EXISTS idx_templates_framework ON templates(framework);
+      CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(type);
     `);
   }
 
@@ -578,17 +626,105 @@ class BrainDbService {
     });
   }
 
-  getStats(): { docs: number; pitfalls: number } {
+  getStats(): { docs: number; pitfalls: number; templates: number } {
     const docsRes = this.queryOne<{ c: number }>(
       "SELECT COUNT(*) as c FROM docs",
     );
     const pitfallsRes = this.queryOne<{ c: number }>(
       "SELECT COUNT(*) as c FROM pitfalls",
     );
+    const templatesRes = this.queryOne<{ c: number }>(
+      "SELECT COUNT(*) as c FROM templates",
+    );
     return {
       docs: docsRes ? docsRes.c : 0,
       pitfalls: pitfallsRes ? pitfallsRes.c : 0,
+      templates: templatesRes ? templatesRes.c : 0,
     };
+  }
+
+  // =====================
+  // TEMPLATES METHODS
+  // =====================
+
+  searchTemplates(
+    query: string,
+    framework?: string,
+    type?: string,
+  ): Template[] {
+    try {
+      const likePattern = `%${query}%`;
+      let sql = `SELECT * FROM templates WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)`;
+      const params: any[] = [likePattern, likePattern, likePattern];
+
+      if (framework) {
+        sql += ` AND framework = ?`;
+        params.push(framework);
+      }
+
+      if (type) {
+        sql += ` AND type = ?`;
+        params.push(type);
+      }
+
+      sql += ` ORDER BY usage_count DESC, created_at DESC LIMIT 10`;
+
+      return this.query<Template>(sql, params);
+    } catch (error) {
+      console.error("[BrainMCP] Error searching templates:", error);
+      return [];
+    }
+  }
+
+  addTemplate(
+    template: Omit<Template, "id" | "created_at" | "updated_at">,
+  ): number | null {
+    if (!this.db) return null;
+
+    try {
+      this.db.run(
+        `INSERT INTO templates (name, description, language, framework, tags, type, content, usage_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          template.name,
+          template.description,
+          template.language || null,
+          template.framework || null,
+          template.tags || null,
+          template.type,
+          template.content,
+          template.usage_count || 0,
+        ],
+      );
+
+      const result = this.queryOne<{ id: number }>(
+        "SELECT last_insert_rowid() as id",
+      );
+      this.saveDatabase();
+      return result ? result.id : null;
+    } catch (error) {
+      console.error("[BrainMCP] Error adding template:", error);
+      return null;
+    }
+  }
+
+  getTemplateByName(name: string): Template | null {
+    return this.queryOne<Template>("SELECT * FROM templates WHERE name = ?", [
+      name,
+    ]);
+  }
+
+  incrementTemplateUsage(id: number): void {
+    if (!this.db) return;
+    try {
+      this.db.run(
+        "UPDATE templates SET usage_count = usage_count + 1, updated_at = datetime('now') WHERE id = ?",
+        [id],
+      );
+      this.saveDatabase();
+    } catch (error) {
+      console.error("[BrainMCP] Error incrementing template usage:", error);
+    }
   }
 }
 
@@ -1082,6 +1218,219 @@ async function main() {
         ],
       };
     }),
+  );
+
+  // =====================
+  // Tool: brainTemplateSave
+  // =====================
+  server.registerTool(
+    "brainTemplateSave",
+    {
+      title: "Save Code Template",
+      description:
+        "Save a reusable code template (snippet, file, or multi-file structure) to Brain for future use by the agent.",
+      inputSchema: {
+        name: z
+          .string()
+          .describe(
+            "Unique template name (e.g., 'react-component', 'api-route')",
+          ),
+        description: z.string().describe("What this template does"),
+        type: z
+          .enum(["snippet", "file", "multifile"])
+          .describe(
+            "Type: snippet (code block), file (single file), multifile (multiple files with structure)",
+          ),
+        content: z
+          .string()
+          .describe(
+            "Template content - code for snippet/file, JSON structure for multifile",
+          ),
+        framework: z
+          .string()
+          .optional()
+          .describe("Framework (e.g., 'nextjs', 'react', 'express')"),
+        language: z
+          .string()
+          .optional()
+          .describe("Programming language (e.g., 'typescript', 'javascript')"),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("Tags for categorization"),
+      },
+    },
+    async (args) => {
+      const { name, description, type, content, framework, language, tags } =
+        args;
+
+      const existing = db.getTemplateByName(name);
+      if (existing) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Template "${name}" already exists. Use a different name or delete the existing one first.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const tagsJson = tags ? JSON.stringify(tags) : undefined;
+
+      const id = db.addTemplate({
+        name,
+        description,
+        type,
+        content,
+        framework,
+        language,
+        tags: tagsJson,
+      });
+
+      if (id) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Template "${name}" saved (ID: ${id})\nType: ${type}\nFramework: ${framework || "N/A"}\nYou can now search and reuse this template with brainTemplateSearch.`,
+            },
+          ],
+        };
+      } else {
+        return {
+          content: [{ type: "text", text: "❌ Failed to save template." }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // =====================
+  // Tool: brainTemplateSearch
+  // =====================
+  server.registerTool(
+    "brainTemplateSearch",
+    {
+      title: "Search Code Templates",
+      description:
+        "Search saved code templates by name, description, or tags. Returns reusable code patterns.",
+      inputSchema: {
+        query: z
+          .string()
+          .describe("Search query (template name, description, or tag)"),
+        framework: z.string().optional().describe("Filter by framework"),
+        type: z
+          .enum(["snippet", "file", "multifile"])
+          .optional()
+          .describe("Filter by type"),
+      },
+    },
+    async (args) => {
+      const { query, framework, type } = args;
+
+      const templates = db.searchTemplates(query, framework, type);
+
+      if (templates.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No templates found for "${query}". You can create one with brainTemplateSave.`,
+            },
+          ],
+        };
+      }
+
+      const parts: string[] = [`## 📄 Templates Found (${templates.length})\n`];
+
+      for (const t of templates) {
+        parts.push(`### ${t.name} (${t.type})`);
+        parts.push(`**Description:** ${t.description}`);
+        if (t.framework) parts.push(`**Framework:** ${t.framework}`);
+        if (t.language) parts.push(`**Language:** ${t.language}`);
+        if (t.tags) {
+          try {
+            const tags = JSON.parse(t.tags);
+            parts.push(`**Tags:** ${tags.join(", ")}`);
+          } catch {}
+        }
+        parts.push(`**Used:** ${t.usage_count || 0} times`);
+        parts.push(
+          `**Content Preview:**\n\`\`\`\n${t.content.substring(0, 200)}${t.content.length > 200 ? "..." : ""}\n\`\`\``,
+        );
+        parts.push(
+          `\nUse brainTemplateApply with name="${t.name}" to apply this template.\n`,
+        );
+      }
+
+      return {
+        content: [{ type: "text", text: parts.join("\n") }],
+      };
+    },
+  );
+
+  // =====================
+  // Tool: brainTemplateApply
+  // =====================
+  server.registerTool(
+    "brainTemplateApply",
+    {
+      title: "Apply Code Template",
+      description:
+        "Get the full content of a template to apply it. Increments usage count.",
+      inputSchema: {
+        name: z.string().describe("Template name to apply"),
+      },
+    },
+    async (args) => {
+      const { name } = args;
+
+      const template = db.getTemplateByName(name);
+
+      if (!template) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Template "${name}" not found. Use brainTemplateSearch to find available templates.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Increment usage
+      if (template.id) {
+        db.incrementTemplateUsage(template.id);
+      }
+
+      const parts: string[] = [
+        `## ✅ Template: ${template.name}`,
+        `**Type:** ${template.type}`,
+        `**Description:** ${template.description}`,
+      ];
+
+      if (template.framework)
+        parts.push(`**Framework:** ${template.framework}`);
+      if (template.language) parts.push(`**Language:** ${template.language}`);
+
+      parts.push(`\n### Content\n`);
+
+      if (template.type === "multifile") {
+        parts.push(
+          `This is a multi-file template. Structure:\n\`\`\`json\n${template.content}\n\`\`\``,
+        );
+        parts.push(`\nParse this JSON and create the files accordingly.`);
+      } else {
+        parts.push(`\`\`\`\n${template.content}\n\`\`\``);
+      }
+
+      return {
+        content: [{ type: "text", text: parts.join("\n") }],
+      };
+    },
   );
 
   // =====================

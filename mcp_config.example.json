@@ -5,7 +5,12 @@
       "command": "node",
       "args": ["C:/path/to/vscode-whytcard-brain/dist/mcp-server.cjs"],
       "env": {
-        "BRAIN_DB_PATH": ""
+        "BRAIN_DB_PATH": "",
+        "BRAIN_REQUIRE_CONSULT": "1",
+        "BRAIN_CONSULT_TTL_MS": "1200000",
+        "BRAIN_STRICT_MODE": "1",
+        "BRAIN_STRICT_REQUIRE_SOURCES": "1",
+        "BRAIN_REQUIRE_CONSULT_EVERY_TOOL": "0"
       },
       "disabled": false,
       "autoApprove": ["brainConsult", "brainSearch"]

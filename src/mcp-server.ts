@@ -12,6 +12,163 @@ import * as path from "path";
 import * as os from "os";
 import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 
+type ToolResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+};
+
+const sessionState: {
+  consultedAtMs: number | null;
+  lastConsultQuery: string | null;
+  lastConsultDocsCount: number;
+  lastConsultDocsWithUrlCount: number;
+} = {
+  consultedAtMs: null,
+  lastConsultQuery: null,
+  lastConsultDocsCount: 0,
+  lastConsultDocsWithUrlCount: 0,
+};
+
+function isStrictModeEnabled(): boolean {
+  const raw = process.env.BRAIN_STRICT_MODE;
+  if (!raw) {
+    return false;
+  }
+  const normalized = raw.trim().toLowerCase();
+  return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+function isStrictSourcesRequired(): boolean {
+  const raw = process.env.BRAIN_STRICT_REQUIRE_SOURCES;
+  if (!raw) {
+    return true;
+  }
+  const normalized = raw.trim().toLowerCase();
+  return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+function isConsultEnforced(): boolean {
+  const raw = process.env.BRAIN_REQUIRE_CONSULT;
+  if (!raw) {
+    return true;
+  }
+  const normalized = raw.trim().toLowerCase();
+  return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+function isConsultRequiredEveryToolCall(): boolean {
+  const raw = process.env.BRAIN_REQUIRE_CONSULT_EVERY_TOOL;
+  if (!raw) {
+    return false;
+  }
+  const normalized = raw.trim().toLowerCase();
+  return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+function clearConsultState(): void {
+  sessionState.consultedAtMs = null;
+  sessionState.lastConsultQuery = null;
+  sessionState.lastConsultDocsCount = 0;
+  sessionState.lastConsultDocsWithUrlCount = 0;
+}
+
+function getConsultTtlMs(): number {
+  const raw = process.env.BRAIN_CONSULT_TTL_MS;
+  if (raw) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 20 * 60 * 1000;
+}
+
+function hasFreshConsult(nowMs: number): boolean {
+  if (sessionState.consultedAtMs === null) {
+    return false;
+  }
+  return nowMs - sessionState.consultedAtMs <= getConsultTtlMs();
+}
+
+function hasSatisfiedConsult(nowMs: number): boolean {
+  if (!hasFreshConsult(nowMs)) {
+    return false;
+  }
+
+  if (!isStrictModeEnabled()) {
+    return true;
+  }
+
+  if (sessionState.lastConsultDocsCount <= 0) {
+    return false;
+  }
+
+  if (
+    isStrictSourcesRequired() &&
+    sessionState.lastConsultDocsWithUrlCount <= 0
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function consultRequiredResult(toolName: string): ToolResult {
+  const ttlMinutes = Math.max(1, Math.round(getConsultTtlMs() / 60000));
+  const strictHint =
+    isStrictModeEnabled() ?
+      `\n\nStrict mode: brainConsult must return at least one documentation entry` +
+      `${isStrictSourcesRequired() ? " with a source URL" : ""}. ` +
+      `If none, fetch official docs (Context7/Tavily), store them with brainSave (include url), then retry brainConsult.`
+    : "";
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          `❌ Brain policy: call brainConsult before using "${toolName}".\n\n` +
+          `Call brainConsult with the user's request as query, then retry.\n` +
+          `(brainConsult is required at least once every ~${ttlMinutes} minutes.)` +
+          strictHint,
+      },
+    ],
+    isError: true,
+  };
+}
+
+type ConsultRequirement = "fresh" | "satisfied";
+
+function enforceConsult<TArgs extends Record<string, unknown>>(
+  toolName: string,
+  handler: (args: TArgs) => Promise<ToolResult>,
+  options?: { requirement?: ConsultRequirement },
+): (args: TArgs) => Promise<ToolResult> {
+  return async (args: TArgs) => {
+    if (!isConsultEnforced()) {
+      return handler(args);
+    }
+
+    const requirement = options?.requirement ?? "satisfied";
+
+    const nowMs = Date.now();
+    const ok =
+      requirement === "fresh" ?
+        hasFreshConsult(nowMs)
+      : hasSatisfiedConsult(nowMs);
+    if (!ok) {
+      return consultRequiredResult(toolName);
+    }
+
+    const result = await handler(args);
+
+    if (isConsultRequiredEveryToolCall()) {
+      clearConsultState();
+    }
+
+    return result;
+  };
+}
+
 // =====================
 // Types (same as brainService.ts)
 // =====================
@@ -80,6 +237,14 @@ function getDefaultDbPath(): string {
       "brain.db",
     ),
     // Windsurf (Codeium) paths
+    path.join(
+      process.env.APPDATA || "",
+      "Windsurf - Next",
+      "User",
+      "globalStorage",
+      "whytcard.whytcard-brain",
+      "brain.db",
+    ),
     path.join(
       process.env.APPDATA || "",
       "Windsurf",
@@ -504,6 +669,11 @@ async function main() {
         maxPitfalls = 3,
       } = args;
 
+      sessionState.consultedAtMs = Date.now();
+      sessionState.lastConsultQuery = query;
+      sessionState.lastConsultDocsCount = 0;
+      sessionState.lastConsultDocsWithUrlCount = 0;
+
       const parts: string[] = [];
 
       // Instructions
@@ -530,6 +700,10 @@ async function main() {
 
       // Search Docs
       const docs = db.searchDocs(query, library, category).slice(0, maxDocs);
+      sessionState.lastConsultDocsCount = docs.length;
+      sessionState.lastConsultDocsWithUrlCount = docs.filter(
+        (doc) => !!doc.url,
+      ).length;
       if (docs.length > 0) {
         parts.push("## 📚 Relevant Documentation\n");
         for (const doc of docs) {
@@ -562,6 +736,33 @@ async function main() {
           parts.join("\n")
         : "No relevant information found in Brain.";
 
+      if (isStrictModeEnabled()) {
+        const issues: string[] = [];
+        if (docs.length === 0) {
+          issues.push(
+            "No relevant documentation found in Brain for this query.",
+          );
+        }
+        if (
+          docs.length > 0 &&
+          isStrictSourcesRequired() &&
+          sessionState.lastConsultDocsWithUrlCount === 0
+        ) {
+          issues.push("Documentation exists but has no stored source URLs.");
+        }
+
+        if (issues.length > 0) {
+          const header =
+            "## ❌ Strict Brain policy blocked\n\n" +
+            issues.map((i) => `- ${i}`).join("\n") +
+            "\n\nNext: fetch OFFICIAL docs (Context7/Tavily), then store them with brainSave (include url), then retry brainConsult.";
+          return {
+            content: [{ type: "text", text: `${header}\n\n---\n\n${result}` }],
+            isError: true,
+          };
+        }
+      }
+
       return {
         content: [{ type: "text", text: result }],
       };
@@ -591,36 +792,58 @@ async function main() {
           .describe("Category (default: documentation)"),
       },
     },
-    async (args) => {
-      const { library, topic, title, content, url, category } = args;
+    enforceConsult(
+      "brainSave",
+      async (args) => {
+        const { library, topic, title, content, url, category } = args;
 
-      const id = db.addDoc({
-        library,
-        topic,
-        title,
-        content,
-        url,
-        category: category || "documentation",
-        source: "mcp",
-      });
+        if (isStrictModeEnabled() && isStrictSourcesRequired() && !url) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  "❌ Strict Brain policy: brainSave requires a source URL.\n" +
+                  "Provide `url` (official documentation link) and retry.",
+              },
+            ],
+            isError: true,
+          };
+        }
 
-      if (id) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `✅ Documentation saved to Brain (ID: ${id})\n- Library: ${library}\n- Topic: ${topic}\n- Title: ${title}`,
-            },
-          ],
-        };
-      } else {
-        return {
-          content: [
-            { type: "text", text: "❌ Failed to save documentation to Brain." },
-          ],
-        };
-      }
-    },
+        const id = db.addDoc({
+          library,
+          topic,
+          title,
+          content,
+          url,
+          category: category || "documentation",
+          source: "mcp",
+        });
+
+        if (id) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `✅ Documentation saved to Brain (ID: ${id})\n- Library: ${library}\n- Topic: ${topic}\n- Title: ${title}`,
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "❌ Failed to save documentation to Brain.",
+              },
+            ],
+            isError: true,
+          };
+        }
+      },
+      { requirement: "fresh" },
+    ),
   );
 
   // =====================
@@ -640,7 +863,7 @@ async function main() {
         code: z.string().optional().describe("Fix code snippet"),
       },
     },
-    async (args) => {
+    enforceConsult("brainBug", async (args) => {
       const { symptom, solution, error, library, code } = args;
 
       const id = db.addPitfall({
@@ -665,9 +888,10 @@ async function main() {
           content: [
             { type: "text", text: "❌ Failed to save pitfall to Brain." },
           ],
+          isError: true,
         };
       }
-    },
+    }),
   );
 
   // =====================
@@ -686,7 +910,7 @@ async function main() {
         nextSteps: z.string().optional().describe("Planned next steps"),
       },
     },
-    async (args) => {
+    enforceConsult("brainSession", async (args) => {
       const { project, summary, decisions, nextSteps } = args;
 
       const date = new Date().toISOString().split("T")[0];
@@ -718,9 +942,10 @@ async function main() {
       } else {
         return {
           content: [{ type: "text", text: "❌ Failed to log session." }],
+          isError: true,
         };
       }
-    },
+    }),
   );
 
   // =====================
@@ -741,7 +966,7 @@ async function main() {
           .describe("Filter by category"),
       },
     },
-    async (args) => {
+    enforceConsult("brainSearch", async (args) => {
       const { query, library, category } = args;
 
       const docs = db.searchDocs(query, library, category);
@@ -768,7 +993,95 @@ async function main() {
       return {
         content: [{ type: "text", text: result }],
       };
+    }),
+  );
+
+  server.registerTool(
+    "brainValidate",
+    {
+      title: "Validate Against Brain Policy",
+      description:
+        "Validate a draft answer/plan against Brain policy (no speculation, grounded in Brain docs).",
+      inputSchema: {
+        draft: z.string().describe("Draft answer/plan to validate"),
+      },
     },
+    enforceConsult("brainValidate", async (args) => {
+      const { draft } = args;
+      const issues: string[] = [];
+
+      const trimmed = draft.trim();
+      const head = trimmed.slice(0, 400).toLowerCase();
+
+      if (isStrictModeEnabled()) {
+        if (!head.includes("basé sur") && !head.includes("based on")) {
+          issues.push(
+            'Draft should start with sources (e.g., "Basé sur ..." / "Based on ...").',
+          );
+        }
+
+        if (
+          isStrictSourcesRequired() &&
+          sessionState.lastConsultDocsWithUrlCount <= 0
+        ) {
+          issues.push(
+            "Strict mode requires at least one documentation source URL from brainConsult.",
+          );
+        }
+
+        const urlRegex = /https?:\/\/\S+/i;
+        if (isStrictSourcesRequired() && !urlRegex.test(trimmed)) {
+          issues.push(
+            "Draft must include at least one URL to the official documentation used.",
+          );
+        }
+
+        const hedgeRegexes = [
+          /\bje\s+crois\b/i,
+          /\bje\s+pense\b/i,
+          /\bpeut[- ]?être\b/i,
+          /\bprobablement\b/i,
+          /\bpas\s+grave\b/i,
+          /\bi\s+think\b/i,
+          /\bmaybe\b/i,
+          /\bmight\b/i,
+          /\bnot\s+sure\b/i,
+          /\bshould\s+work\b/i,
+        ];
+
+        for (const re of hedgeRegexes) {
+          if (re.test(trimmed)) {
+            issues.push(
+              "Draft contains speculative/uncertain language. Remove it and rely on documented facts.",
+            );
+            break;
+          }
+        }
+      }
+
+      if (issues.length > 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                "❌ Brain validation failed:\n\n" +
+                issues.map((i) => `- ${i}`).join("\n"),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: "✅ Brain validation passed.",
+          },
+        ],
+      };
+    }),
   );
 
   // =====================

@@ -1,4 +1,4 @@
-# WhytCard Brain v1.1.0 - Release Package
+# WhytCard Brain - Release Package
 
 **Local knowledge base for AI assistants** — Store instructions, documentation, and project context to supercharge your AI-assisted development.
 
@@ -12,7 +12,6 @@ Works with **GitHub Copilot** (VS Code), **Cascade** (Windsurf), and **Cursor AI
 - `INSTALL.md` - Detailed installation guide
 - `QUICKSTART.md` - Quick start guide
 - `CHANGELOG.md` - Version history
-- `checksums.txt` - File integrity verification
 
 ---
 
@@ -61,14 +60,14 @@ Works with **GitHub Copilot** (VS Code), **Cascade** (Windsurf), and **Cursor AI
 
 ### 📚 Knowledge Management
 
-- **4 Categories:** Instructions, Documentation, Context, Stats
+- **5 Views:** Instructions, Documentation, Context, Templates, Stats
 - **Domain Grouping:** Website, Mobile, Backend, DevOps, General
 - **Auto-Sync:** Real-time updates across windows
-- **Search & Export:** Full-text search and JSON export
+- **Search:** Full-text search across stored entries
 
 ### 🛠️ Developer Experience
 
-- **Sidebar Panel** for browsing and managing knowledge
+- **Sidebar Panel** for browsing knowledge (agent-driven workflow)
 - **Webview Display** for rich document viewing
 - **Copilot Instructions** integration
 - **Status Bar** indicator
@@ -138,28 +137,10 @@ MIT License - See LICENSE file for details
 
 ---
 
-## 🎉 What's New in v1.1.0
+## What's New
 
-### Auto-Configuration
-
-- ✨ Automatic MCP server setup for Windsurf/Cursor
-- 🔍 Environment detection and smart configuration
-- 🚀 One-click installation with restart prompt
-
-### Enhanced MCP Integration
-
-- 🛠️ New commands: `Configure MCP Server`, `Show MCP Status`
-- 📊 Real-time configuration status
-- 🔧 Support for multiple MCP environments
-
-### Developer Experience
-
-- 📚 Comprehensive [INSTALL.md](./INSTALL.md) guide
-- ✅ Automated testing suite
-- 🧹 Cleaned up activation events
-
-See [CHANGELOG.md](./CHANGELOG.md) for complete version history.
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 ---
 
-**Enjoy using WhytCard Brain! 🧠✨**
+Enjoy using WhytCard Brain!

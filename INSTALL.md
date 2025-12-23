@@ -7,14 +7,8 @@
 **Option A: From VSIX (Recommended for testing)**
 
 ```bash
-# Build the extension
-npm run build
-
-# Package the extension
-npx vsce package
-
-# Install in Windsurf/VS Code/Cursor
-code --install-extension whytcard-brain-1.1.0.vsix
+# One-command setup (from source) for Cursor
+npm run setup:cursor
 ```
 
 **Option B: From Marketplace** (when published)
@@ -72,7 +66,11 @@ If automatic setup fails or you prefer manual configuration:
            "brainSearch",
            "brainSave",
            "brainBug",
-           "brainSession"
+          "brainSession",
+          "brainValidate",
+          "brainTemplateSave",
+          "brainTemplateSearch",
+          "brainTemplateApply"
          ],
          "disabled": false
        }
@@ -87,7 +85,7 @@ If automatic setup fails or you prefer manual configuration:
 
 Similar to Windsurf, but:
 
-- Config file: `~/.cursor/mcp_config.json`
+- Config file: `~/.cursor/mcp.json` (some setups may use `~/.cursor/mcp_config.json`)
 - DB path: `<appdata>/Cursor/User/globalStorage/whytcard.whytcard-brain/brain.db`
 
 ### For VS Code
@@ -198,17 +196,13 @@ The database is created automatically on first use. If you see this error:
 - **Brain: Show MCP Status** - Check configuration
 - **Brain: Refresh** - Reload database
 - **Brain: Search** - Search your knowledge base
-- **Brain: Export** - Export your data
-- **Brain: Add** - Add documentation manually
 - **Brain: Install Copilot Chat Instructions** - Set up Copilot integration
 
 ---
 
 ## Next Steps
 
-1. **Add your first documentation:**
-   - Use the sidebar panel
-   - Or use `brainSave` tool via Cascade/Copilot
+1. **Use Brain normally in chat:** the agent will consult `brainConsult` and will store new knowledge via `brainSave` automatically (strict mode enforces URLs).
 
 2. **Try asking questions:**
    - In Windsurf Cascade: Questions automatically use Brain

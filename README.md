@@ -19,14 +19,19 @@ WhytCard Brain registers **Language Model Tools** that Copilot automatically use
 | `#brainSave`         | Store new documentation locally              |
 | `#brainBug`          | Record bugs and their solutions              |
 | `#brainSession`      | Log session summaries for continuity         |
+| `#brainValidate`     | Validate answers are grounded in sources     |
+| `#brainTemplateSave` | Save reusable code/templates (agent-driven)  |
+| `#brainTemplateSearch` | Search saved templates                     |
+| `#brainTemplateApply`  | Apply a template (for reuse)               |
 
 ### 📚 Organized Knowledge
 
-Content is organized into **4 categories** visible in the sidebar:
+Content is organized into **5 categories** visible in the sidebar:
 
 - **Instructions** — Coding rules, conventions, mandatory guidelines
 - **Documentation** — Framework docs, API references, code examples
 - **Context** — Project architecture, tech stack, design decisions
+- **Templates** — Reusable snippets/files/multi-file scaffolds (agent-driven)
 - **Stats** — Usage statistics and database info
 
 ### 🗂️ Domain Grouping
@@ -49,13 +54,13 @@ Documentation is automatically grouped by domain:
 
 ### Quick Install
 
-1. **Install the extension:**
+1. **One-command setup (from source):**
 
    ```bash
-   npm run build
-   npx vsce package
-   code --install-extension whytcard-brain-1.1.0.vsix
+   npm run setup:cursor
    ```
+
+   This will: install deps, run quality checks, package the VSIX, install it in Cursor, and configure MCP.
 
 2. **Auto-configure MCP (Windsurf/Cursor only):**
    - A notification will appear after 3 seconds
@@ -108,9 +113,11 @@ WhytCard Brain also provides a chat participant:
 Click the **Brain** icon in the Activity Bar to:
 
 - Browse all stored knowledge
-- Add new documentation manually
 - Search across all entries
-- Export the database
+- View docs and templates in a rich webview
+
+> Note: this repository is configured for an **agent-driven workflow**.
+> Manual “Add/Edit/Delete” actions are intentionally removed from the UI.
 
 ### Commands
 
@@ -118,9 +125,9 @@ Click the **Brain** icon in the Activity Bar to:
 | ------------------------------------------ | --------------------------------------------------------------------- |
 | `Brain: Install Copilot Chat Instructions` | Create `.github/copilot-instructions.md` and enable instruction files |
 | `Brain: Search`                            | Search the knowledge base                                             |
-| `Brain: Add`                               | Add new documentation                                                 |
 | `Brain: Refresh`                           | Reload from database                                                  |
-| `Brain: Export`                            | Export database as JSON                                               |
+| `Brain: Configure MCP Server`              | Write MCP config (Cursor/Windsurf)                                    |
+| `Brain: Show MCP Status`                   | Show MCP config + DB path                                             |
 
 ## Database
 
@@ -128,7 +135,7 @@ WhytCard Brain uses **SQLite** (via sql.js WASM) for local storage:
 
 - Location: `~/.vscode/globalStorage/whytcard.whytcard-brain/brain.db`
 - Fully local — no cloud sync, no API calls
-- Export/import via JSON
+- Export/import is handled by the agent tools (and can be scripted)
 
 ## Windsurf / Cascade Integration
 
@@ -146,8 +153,8 @@ Add to `~/.codeium/windsurf-next/mcp_config.json`:
 {
   "mcpServers": {
     "whytcard-brain": {
-      "command": "npx",
-      "args": ["-y", "whytcard-brain-mcp"],
+      "command": "node",
+      "args": ["<path-to-extension>/dist/mcp-server.cjs"],
       "env": {
         "BRAIN_STRICT_MODE": "1",
         "BRAIN_STRICT_REQUIRE_SOURCES": "1"
@@ -157,7 +164,11 @@ Add to `~/.codeium/windsurf-next/mcp_config.json`:
         "brainSearch",
         "brainSave",
         "brainBug",
-        "brainSession"
+        "brainSession",
+        "brainValidate",
+        "brainTemplateSave",
+        "brainTemplateSearch",
+        "brainTemplateApply"
       ]
     }
   }
@@ -167,7 +178,7 @@ Add to `~/.codeium/windsurf-next/mcp_config.json`:
 ### Manual Setup (from source)
 
 1. Build: `npm run build`
-2. Add to `mcp_config.json`:
+2. Add to your MCP config (`~/.cursor/mcp.json` for Cursor, `~/.codeium/windsurf-next/mcp_config.json` for Windsurf):
 
 ```json
 {

@@ -2,7 +2,7 @@
   "name": "whytcard-brain",
   "displayName": "WhytCard Brain",
   "description": "Local knowledge base for GitHub Copilot - Store instructions, documentation, and project context for AI-assisted development",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "publisher": "whytcard",
   "license": "MIT",
   "repository": {
@@ -548,57 +548,9 @@
         "category": "Brain"
       },
       {
-        "command": "whytcard-brain.addDoc",
-        "title": "Add",
-        "icon": "$(add)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.addPitfall",
-        "title": "Add Pitfall",
-        "icon": "$(warning)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.deleteEntry",
-        "title": "Delete",
-        "icon": "$(trash)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.viewEntry",
-        "title": "View",
-        "icon": "$(eye)",
-        "category": "Brain"
-      },
-      {
         "command": "whytcard-brain.search",
         "title": "Search",
         "icon": "$(search)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.exportDb",
-        "title": "Export",
-        "icon": "$(export)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.copyContent",
-        "title": "Copy",
-        "icon": "$(copy)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.sendToChat",
-        "title": "Send to Chat",
-        "icon": "$(comment-discussion)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.editEntry",
-        "title": "Edit",
-        "icon": "$(edit)",
         "category": "Brain"
       },
       {
@@ -612,30 +564,6 @@
         "title": "Show MCP Status",
         "icon": "$(info)",
         "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.addTemplate",
-        "title": "Add Template",
-        "icon": "$(add)",
-        "category": "Brain Templates"
-      },
-      {
-        "command": "whytcard-brain.viewTemplate",
-        "title": "View Template",
-        "icon": "$(eye)",
-        "category": "Brain Templates"
-      },
-      {
-        "command": "whytcard-brain.deleteTemplate",
-        "title": "Delete Template",
-        "icon": "$(trash)",
-        "category": "Brain Templates"
-      },
-      {
-        "command": "whytcard-brain.applyTemplate",
-        "title": "Apply Template",
-        "icon": "$(run)",
-        "category": "Brain Templates"
       }
     ],
     "menus": {
@@ -646,88 +574,13 @@
           "group": "navigation"
         },
         {
-          "command": "whytcard-brain.addDoc",
-          "when": "view =~ /whytcard-brain\\./",
-          "group": "navigation"
-        },
-        {
           "command": "whytcard-brain.search",
-          "when": "view =~ /whytcard-brain\\./",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/",
           "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "whytcard-brain.sendToChat",
-          "when": "viewItem == doc",
-          "group": "inline"
-        },
-        {
-          "command": "whytcard-brain.viewEntry",
-          "when": "viewItem == doc",
-          "group": "inline"
-        },
-        {
-          "command": "whytcard-brain.copyContent",
-          "when": "viewItem == doc",
-          "group": "1_actions"
-        },
-        {
-          "command": "whytcard-brain.editEntry",
-          "when": "viewItem == doc",
-          "group": "1_actions"
-        },
-        {
-          "command": "whytcard-brain.deleteEntry",
-          "when": "viewItem == doc",
-          "group": "2_delete"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "whytcard-brain.deleteEntry",
-          "when": "false"
-        },
-        {
-          "command": "whytcard-brain.viewEntry",
-          "when": "false"
-        },
-        {
-          "command": "whytcard-brain.copyContent",
-          "when": "false"
-        },
-        {
-          "command": "whytcard-brain.sendToChat",
-          "when": "false"
-        },
-        {
-          "command": "whytcard-brain.editEntry",
-          "when": "false"
-        },
-        {
-          "command": "whytcard-brain.addPitfall",
-          "when": "false"
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "whytcard-brain.instructions",
-        "contents": "📋 **Instructions**\nDefine coding rules, conventions, and mandatory guidelines that Copilot will follow.\n\n[$(add) Add Instruction](command:whytcard-brain.addDoc)\n\n💡 Tip: Instructions are loaded automatically when you use @brain or brainConsult."
-      },
-      {
-        "view": "whytcard-brain.documentation",
-        "contents": "📚 **Documentation**\nStore API references, code examples, and framework guides.\n\n[$(add) Add Documentation](command:whytcard-brain.addDoc)\n[$(search) Search](command:whytcard-brain.search)\n\n💡 Tip: Use brainSave to add docs from external sources with URLs."
-      },
-      {
-        "view": "whytcard-brain.context",
-        "contents": "🎯 **Project Context**\nDocument your architecture, tech stack, and decisions.\n\n[$(add) Add Context](command:whytcard-brain.addDoc)\n\n💡 Tip: Keep this updated so Copilot understands your project."
-      },
-      {
-        "view": "whytcard-brain.stats",
-        "contents": "📊 **Usage Statistics**\nTrack how Copilot uses your Brain knowledge base.\n\nStats will appear once you start using Brain tools."
-      }
-    ],
+    "viewsWelcome": [],
     "configuration": {
       "title": "WhytCard Brain",
       "properties": {
@@ -749,7 +602,12 @@
     "build": "node scripts/build.js",
     "build:mcp": "esbuild src/mcp-server.ts --bundle --outfile=dist/mcp-server.js --format=esm --platform=node --target=node18 --banner:js=\"#!/usr/bin/env node\"",
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
-    "test": "mocha -r ts-node/register src/test/unit/**/*.test.ts"
+    "test": "mocha -r ts-node/register src/test/unit/**/*.test.ts",
+    "clean": "node scripts/clean.js",
+    "check": "npm run build && npm test && node scripts/test-brain-policy.js",
+    "package:vsix": "npx --yes @vscode/vsce package",
+    "setup:cursor": "node scripts/one-click.js --editor cursor",
+    "setup:windsurf": "node scripts/one-click.js --editor windsurf"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

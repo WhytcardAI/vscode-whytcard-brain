@@ -18,7 +18,25 @@ export function buildCopilotInstructionsContent(): string {
     "- When you solve a bug or error, save it using `#tool:brainBug`.\n" +
     "- At the end of significant work, log the session with `#tool:brainSession`.\n" +
     "- Keep the project context updated. If an architectural decision is made, update it via `#tool:brainSave` (category='project').\n\n" +
-    "## 4. PROOF-BASED ANSWERS\n" +
+    "## 4. AUTOSAVE REUSABLE OUTPUTS AS TEMPLATES (Multi-stack)\n" +
+    "- **Mandatory:** When you generate a reusable block (component, config, script, CI, infra snippet, etc.), save it with `#tool:brainTemplateSave`.\n" +
+    "- Use `type='snippet'` for small blocks, `type='file'` for one full file, and **`type='multifile'` for full project scaffolds** (e.g., a complete Next.js project structure).\n" +
+    "- **Vanilla rule:** Templates must be portable and safe: no secrets, no user-specific paths, no machine-specific config, no node_modules, no build artifacts.\n" +
+    "- **Naming rule:** Use unique, stack-scoped names like `nextjs-app-router-ts-tailwind`, `nestjs-rest-api`, `python-fastapi-service`, etc.\n" +
+    "- **Metadata rule:** Always set `framework` (stack) and add helpful `tags` (e.g., `scaffold`, `vanilla`, `app-router`, `typescript`, `tailwind`, `auth`, etc.).\n" +
+    "- **Multi-file template format:** store `content` as JSON with relative paths:\n" +
+    "  ```json\n" +
+    "  {\n" +
+    "    \"schemaVersion\": 1,\n" +
+    "    \"root\": \".\",\n" +
+    "    \"files\": [\n" +
+    "      { \"path\": \"package.json\", \"content\": \"...\" },\n" +
+    "      { \"path\": \"src/app/page.tsx\", \"content\": \"...\" }\n" +
+    "    ]\n" +
+    "  }\n" +
+    "  ```\n" +
+    "- When reusing, call `#tool:brainTemplateSearch` then `#tool:brainTemplateApply` and materialize the returned structure into the project.\n\n" +
+    "## 5. PROOF-BASED ANSWERS\n" +
     '- Start your answers by stating your source: "Based on [Local Brain/Official Doc]..."\n' +
     "- If using external docs, provide the URL.\n" +
     "<!-- whytcard-brain:end -->\n"

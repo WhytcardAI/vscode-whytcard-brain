@@ -76,37 +76,26 @@ Or enable automatic Brain consultation:
 
 ---
 
-## Step 4: Add Your First Documentation
+## Step 4: Agent-driven saving (recommended)
 
-### Via Sidebar
+This extension is designed so **you don't manually manage entries**.
+The AI agent should:
 
-1. Click the **Brain icon** in the Activity Bar (left sidebar)
-2. Click the **+ (Add)** button
-3. Fill in:
-   - **Library:** e.g., "nextjs"
-   - **Topic:** e.g., "server-components"
-   - **Title:** e.g., "React Server Components Guide"
-   - **Content:** Your documentation
-   - **URL:** (optional) Source URL
-   - **Category:** `documentation` (default)
-4. Save
+1. Consult Brain first (`brainConsult`)
+2. If missing: fetch official docs (Context7/Tavily/Microsoft Docs)
+3. Save them with a URL (`brainSave`)
+4. Save reusable code as templates (`brainTemplateSave`)
 
-### Via AI Commands
+### Save documentation (with URL)
 
-**In Windsurf Cascade:**
+- Ask the AI to fetch official docs and store them. In strict mode, **URLs are required**.
 
-```
-Save this documentation about Next.js App Router:
-[paste your content]
-```
+### Save reusable scaffolds (templates)
 
-Brain will automatically use `brainSave` tool to store it.
-
-**In VS Code Copilot:**
-
-```
-@brain save this doc about TypeScript...
-```
+- When the AI generates a reusable block or a full project scaffold (e.g., Next.js), it should save it as:
+  - `snippet` (small)
+  - `file` (single file)
+  - `multifile` (full scaffolds)
 
 ---
 
@@ -133,12 +122,6 @@ Brain: Search
 
 - Click any item in the sidebar
 - View in a rich webview panel
-
-**Export your knowledge:**
-
-```bash
-Brain: Export
-```
 
 ---
 
@@ -248,11 +231,12 @@ Click the Brain status bar item (bottom right) to quickly search your knowledge 
 
 ### Test 1: Check the Sidebar
 
-✅ You should see 4 views:
+✅ You should see 5 views:
 
 - Instructions
 - Documentation
 - Context
+- Templates
 - Stats
 
 ### Test 2: Query Brain
@@ -317,7 +301,7 @@ Brain: Configure MCP Server (Windsurf/Cursor)
 ### Issue: "No documentation found"
 
 **Solution:**
-Add some docs first! Click the **+ button** in the sidebar.
+Ask the agent to fetch official docs and store them using `brainSave` (with URL).
 
 ---
 

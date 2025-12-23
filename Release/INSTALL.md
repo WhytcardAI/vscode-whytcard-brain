@@ -198,17 +198,13 @@ The database is created automatically on first use. If you see this error:
 - **Brain: Show MCP Status** - Check configuration
 - **Brain: Refresh** - Reload database
 - **Brain: Search** - Search your knowledge base
-- **Brain: Export** - Export your data
-- **Brain: Add** - Add documentation manually
 - **Brain: Install Copilot Chat Instructions** - Set up Copilot integration
 
 ---
 
 ## Next Steps
 
-1. **Add your first documentation:**
-   - Use the sidebar panel
-   - Or use `brainSave` tool via Cascade/Copilot
+1. **Use Brain normally in chat:** the agent will consult `brainConsult` and store new knowledge via `brainSave` (strict mode enforces URLs).
 
 2. **Try asking questions:**
    - In Windsurf Cascade: Questions automatically use Brain

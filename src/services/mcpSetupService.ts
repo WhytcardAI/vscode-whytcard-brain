@@ -76,7 +76,15 @@ export class McpSetupService {
         return windsurfNextPath;
 
       case "cursor":
-        const cursorPath = path.join(homeDir, ".cursor", "mcp_config.json");
+        // Cursor MCP config path can differ depending on versions/setups.
+        // Prefer the existing file if present.
+        const cursorMcpJson = path.join(homeDir, ".cursor", "mcp.json");
+        const cursorMcpConfigJson = path.join(homeDir, ".cursor", "mcp_config.json");
+        const cursorPath = fs.existsSync(cursorMcpJson)
+          ? cursorMcpJson
+          : fs.existsSync(cursorMcpConfigJson)
+            ? cursorMcpConfigJson
+            : cursorMcpJson; // default we create
         const cursorDir = path.dirname(cursorPath);
         if (!fs.existsSync(cursorDir)) {
           fs.mkdirSync(cursorDir, { recursive: true });
@@ -226,6 +234,10 @@ export class McpSetupService {
           "brainSave",
           "brainBug",
           "brainSession",
+          "brainValidate",
+          "brainTemplateSave",
+          "brainTemplateSearch",
+          "brainTemplateApply",
         ],
         disabled: false,
       };

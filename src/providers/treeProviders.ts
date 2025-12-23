@@ -7,7 +7,6 @@
 import * as vscode from "vscode";
 import {
   getBrainService,
-  getUsageStats,
   inferDomain,
   type Doc,
 } from "../services/brainService";
@@ -251,7 +250,6 @@ export class StatsTreeProvider implements vscode.TreeDataProvider<BrainTreeItem>
 
     const service = getBrainService();
     const stats = service.getStats();
-    const usage = getUsageStats();
     const items: BrainTreeItem[] = [];
 
     // Database stats
@@ -265,61 +263,49 @@ export class StatsTreeProvider implements vscode.TreeDataProvider<BrainTreeItem>
     dbItem.entryType = "stat";
     items.push(dbItem);
 
-    // Usage stats - Tool calls
-    const toolsItem = new BrainTreeItem(
-      "Appels outils",
+    // Database path (useful when MCP points to a shared DB)
+    const dbPathItem = new BrainTreeItem(
+      "Chemin DB",
       vscode.TreeItemCollapsibleState.None,
     );
-    toolsItem.iconPath = new vscode.ThemeIcon("tools");
-    toolsItem.description = `search: ${usage.searchCount}, store: ${usage.storeDocCount}, pitfall: ${usage.storePitfallCount}`;
-    toolsItem.contextValue = "stat";
-    toolsItem.entryType = "stat";
-    items.push(toolsItem);
+    dbPathItem.iconPath = new vscode.ThemeIcon("file-directory");
+    dbPathItem.description = service.getDbPath();
+    dbPathItem.contextValue = "stat";
+    dbPathItem.entryType = "stat";
+    items.push(dbPathItem);
 
-    // New tools
-    const newToolsItem = new BrainTreeItem(
-      "Nouveaux outils",
+    // Last activity (derived from DB content, not from in-memory tool usage)
+    const toMs = (value?: string | null): number => {
+      if (!value) return 0;
+      const ms = Date.parse(value);
+      return Number.isFinite(ms) ? ms : 0;
+    };
+
+    const lastDocMs = Math.max(
+      0,
+      ...service.getAllDocs().map((d) => toMs(d.created_at)),
+    );
+    const lastPitfallMs = Math.max(
+      0,
+      ...service.getAllPitfalls().map((p) => toMs(p.created_at)),
+    );
+    const lastTemplateMs = Math.max(
+      0,
+      ...service.getAllTemplates().map((t) => toMs(t.updated_at || t.created_at)),
+    );
+
+    const lastMs = Math.max(lastDocMs, lastPitfallMs, lastTemplateMs);
+
+    const lastActivityItem = new BrainTreeItem(
+      "Derniere activite",
       vscode.TreeItemCollapsibleState.None,
     );
-    newToolsItem.iconPath = new vscode.ThemeIcon("rocket");
-    newToolsItem.description = `instructions: ${usage.getInstructionsCount}, context: ${usage.getContextCount}`;
-    newToolsItem.contextValue = "stat";
-    newToolsItem.entryType = "stat";
-    items.push(newToolsItem);
-
-    // Last used
-    const lastUsedItem = new BrainTreeItem(
-      "Derniere utilisation",
-      vscode.TreeItemCollapsibleState.None,
-    );
-    lastUsedItem.iconPath = new vscode.ThemeIcon("clock");
-    lastUsedItem.description =
-      usage.lastUsed ?
-        new Date(usage.lastUsed).toLocaleString("fr-FR")
-      : "Jamais";
-    lastUsedItem.contextValue = "stat";
-    lastUsedItem.entryType = "stat";
-    items.push(lastUsedItem);
-
-    // Errors
-    if (usage.errors.length > 0) {
-      const errorsItem = new BrainTreeItem(
-        "Erreurs",
-        vscode.TreeItemCollapsibleState.None,
-      );
-      errorsItem.iconPath = new vscode.ThemeIcon("error");
-      errorsItem.description = `${usage.errors.length} erreur(s)`;
-      errorsItem.tooltip = new vscode.MarkdownString(
-        `**Dernieres erreurs:**\n\n` +
-          usage.errors
-            .slice(-5)
-            .map((e) => `- ${e}`)
-            .join("\n"),
-      );
-      errorsItem.contextValue = "stat";
-      errorsItem.entryType = "stat";
-      items.push(errorsItem);
-    }
+    lastActivityItem.iconPath = new vscode.ThemeIcon("clock");
+    lastActivityItem.description =
+      lastMs > 0 ? new Date(lastMs).toLocaleString("fr-FR") : "Jamais";
+    lastActivityItem.contextValue = "stat";
+    lastActivityItem.entryType = "stat";
+    items.push(lastActivityItem);
 
     return Promise.resolve(items);
   }

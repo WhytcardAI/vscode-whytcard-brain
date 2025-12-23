@@ -1,3 +1,0 @@
-[BrainMCP] Using database: C:\Users\jerome\AppData\Roaming\Windsurf - Next\User\globalStorage\whytcard.whytcard-brain\brain.db
-[BrainMCP] Connected - 78 docs, 8 pitfalls
-[BrainMCP] Server started on stdio

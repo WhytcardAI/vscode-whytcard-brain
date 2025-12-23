@@ -98,21 +98,6 @@ export class BrainWebviewPanel {
           vscode.window.showInformationMessage("Document complet copié");
         }
         break;
-      case "delete":
-        if (this._currentDoc?.id) {
-          const confirm = await vscode.window.showWarningMessage(
-            `Supprimer "${this._currentDoc.title}" ?`,
-            { modal: true },
-            "Supprimer",
-          );
-          if (confirm === "Supprimer") {
-            getBrainService().deleteDoc(this._currentDoc.id);
-            vscode.commands.executeCommand("whytcard-brain.refresh");
-            this._panel.dispose();
-            vscode.window.showInformationMessage("Document supprimé");
-          }
-        }
-        break;
       case "openUrl":
         if (message.data && typeof message.data === "string") {
           vscode.env.openExternal(vscode.Uri.parse(message.data));
@@ -316,10 +301,6 @@ export class BrainWebviewPanel {
     .action-btn.primary:hover {
       background: var(--vscode-button-hoverBackground);
     }
-    .action-btn.danger:hover {
-      background: var(--vscode-inputValidation-errorBackground);
-      border-color: var(--vscode-inputValidation-errorBorder);
-    }
     .action-btn svg {
       width: 14px;
       height: 14px;
@@ -433,9 +414,6 @@ export class BrainWebviewPanel {
           <svg viewBox="0 0 16 16"><path d="M4 4h8v8H4V4zm1 1v6h6V5H5zM2 2v8h1V3h7V2H2z"/></svg>
           Copier
         </button>
-        <button class="action-btn danger" onclick="deleteDoc()" title="Supprimer">
-          <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 016 6v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm2.5 0a.5.5 0 01.5.5v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm3 .5a.5.5 0 00-1 0v6a.5.5 0 001 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 01-1 1H13v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h-.5a1 1 0 01-1-1V2a1 1 0 011-1H6a1 1 0 011-1h2a1 1 0 011 1h3.5a1 1 0 011 1v1zM4.118 4L4 4.059V13a1 1 0 001 1h6a1 1 0 001-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
-        </button>
       </div>
     </div>
     <div class="badges">
@@ -481,9 +459,6 @@ export class BrainWebviewPanel {
     }
     function copyAll() {
       vscode.postMessage({ command: 'copyAll' });
-    }
-    function deleteDoc() {
-      vscode.postMessage({ command: 'delete' });
     }
     function openUrl(url) {
       vscode.postMessage({ command: 'openUrl', data: url });

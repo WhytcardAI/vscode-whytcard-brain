@@ -6,7 +6,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import * as z from "zod";
+import * as z from "zod/v3";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -15,6 +15,72 @@ import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
+};
+
+type BrainCategory = "instruction" | "documentation" | "project";
+
+type BrainConsultArgs = {
+  query: string;
+  library?: string;
+  category?: BrainCategory;
+  includeInstructions?: boolean;
+  includeContext?: boolean;
+  maxDocs?: number;
+  maxPitfalls?: number;
+};
+
+type BrainSaveArgs = {
+  library: string;
+  topic: string;
+  title: string;
+  content: string;
+  url?: string;
+  category?: BrainCategory;
+};
+
+type BrainBugArgs = {
+  symptom: string;
+  solution: string;
+  error?: string;
+  library?: string;
+  code?: string;
+};
+
+type BrainSessionArgs = {
+  project: string;
+  summary: string;
+  decisions?: string;
+  nextSteps?: string;
+};
+
+type BrainSearchArgs = {
+  query: string;
+  library?: string;
+  category?: BrainCategory;
+};
+
+type BrainValidateArgs = {
+  draft: string;
+};
+
+type BrainTemplateSaveArgs = {
+  name: string;
+  description: string;
+  type: "snippet" | "file" | "multifile";
+  content: string;
+  framework?: string;
+  language?: string;
+  tags?: string[];
+};
+
+type BrainTemplateSearchArgs = {
+  query: string;
+  framework?: string;
+  type?: "snippet" | "file" | "multifile";
+};
+
+type BrainTemplateApplyArgs = {
+  name: string;
 };
 
 const sessionState: {
@@ -912,48 +978,57 @@ async function main() {
     version: "1.0.0",
   });
 
+  // Avoid overly-deep generic inference (TS2589) in @modelcontextprotocol/sdk typings.
+  // Runtime behavior is unchanged; this only affects TypeScript checking.
+  const registerTool = (name: string, config: any, cb: any) =>
+    server.registerTool(name, config as any, cb as any);
+
   // =====================
   // Tool: brainConsult
   // =====================
-  server.registerTool(
+  // NOTE: Explicitly type the schema shape to avoid TS2589 ("Type instantiation is excessively deep")
+  // caused by complex generic inference inside @modelcontextprotocol/sdk registerTool.
+  const brainConsultInputSchema: z.ZodRawShape = {
+    query: z
+      .string()
+      .describe(
+        'Search query (e.g., "nextjs async params", "tailwind dark mode")',
+      ),
+    library: z
+      .string()
+      .optional()
+      .describe("Filter by library (nextjs, react, tailwind, etc.)"),
+    category: z
+      .enum(["instruction", "documentation", "project"])
+      .optional()
+      .describe("Filter docs by category"),
+    includeInstructions: z
+      .boolean()
+      .optional()
+      .describe("Include instructions (default true)"),
+    includeContext: z
+      .boolean()
+      .optional()
+      .describe("Include project context (default true)"),
+    maxDocs: z
+      .number()
+      .optional()
+      .describe("Max docs to return (1-10, default 5)"),
+    maxPitfalls: z
+      .number()
+      .optional()
+      .describe("Max pitfalls to return (0-10, default 3)"),
+  };
+
+  registerTool(
     "brainConsult",
     {
       title: "Consult Brain",
       description:
         "ALWAYS call this tool before responding. Loads instructions, project context, and searches relevant docs/pitfalls from the local Brain database.",
-      inputSchema: {
-        query: z
-          .string()
-          .describe(
-            'Search query (e.g., "nextjs async params", "tailwind dark mode")',
-          ),
-        library: z
-          .string()
-          .optional()
-          .describe("Filter by library (nextjs, react, tailwind, etc.)"),
-        category: z
-          .enum(["instruction", "documentation", "project"])
-          .optional()
-          .describe("Filter docs by category"),
-        includeInstructions: z
-          .boolean()
-          .optional()
-          .describe("Include instructions (default true)"),
-        includeContext: z
-          .boolean()
-          .optional()
-          .describe("Include project context (default true)"),
-        maxDocs: z
-          .number()
-          .optional()
-          .describe("Max docs to return (1-10, default 5)"),
-        maxPitfalls: z
-          .number()
-          .optional()
-          .describe("Max pitfalls to return (0-10, default 3)"),
-      },
+      inputSchema: brainConsultInputSchema,
     },
-    async (args) => {
+    async (args: BrainConsultArgs) => {
       const {
         query,
         library,
@@ -1066,7 +1141,7 @@ async function main() {
   // =====================
   // Tool: brainSave
   // =====================
-  server.registerTool(
+  registerTool(
     "brainSave",
     {
       title: "Save to Brain",
@@ -1088,7 +1163,7 @@ async function main() {
     },
     enforceConsult(
       "brainSave",
-      async (args) => {
+      async (args: BrainSaveArgs) => {
         const { library, topic, title, content, url, category } = args;
 
         if (isStrictModeEnabled() && isStrictSourcesRequired() && !url) {
@@ -1146,7 +1221,7 @@ async function main() {
   // =====================
   // Tool: brainBug
   // =====================
-  server.registerTool(
+  registerTool(
     "brainBug",
     {
       title: "Save Bug/Pitfall",
@@ -1160,7 +1235,7 @@ async function main() {
         code: z.string().optional().describe("Fix code snippet"),
       },
     },
-    enforceConsult("brainBug", async (args) => {
+    enforceConsult<BrainBugArgs>("brainBug", async (args) => {
       const { symptom, solution, error, library, code } = args;
 
       const id = db.addPitfall({
@@ -1194,7 +1269,7 @@ async function main() {
   // =====================
   // Tool: brainSession
   // =====================
-  server.registerTool(
+  registerTool(
     "brainSession",
     {
       title: "Log Session",
@@ -1207,7 +1282,7 @@ async function main() {
         nextSteps: z.string().optional().describe("Planned next steps"),
       },
     },
-    enforceConsult("brainSession", async (args) => {
+    enforceConsult<BrainSessionArgs>("brainSession", async (args) => {
       const { project, summary, decisions, nextSteps } = args;
 
       const date = new Date().toISOString().split("T")[0];
@@ -1248,7 +1323,7 @@ async function main() {
   // =====================
   // Tool: brainSearch
   // =====================
-  server.registerTool(
+  registerTool(
     "brainSearch",
     {
       title: "Search Brain",
@@ -1263,7 +1338,7 @@ async function main() {
           .describe("Filter by category"),
       },
     },
-    enforceConsult("brainSearch", async (args) => {
+    enforceConsult<BrainSearchArgs>("brainSearch", async (args) => {
       const { query, library, category } = args;
 
       const docs = db.searchDocs(query, library, category);
@@ -1293,7 +1368,7 @@ async function main() {
     }),
   );
 
-  server.registerTool(
+  registerTool(
     "brainValidate",
     {
       title: "Validate Against Brain Policy",
@@ -1303,7 +1378,7 @@ async function main() {
         draft: z.string().describe("Draft answer/plan to validate"),
       },
     },
-    enforceConsult("brainValidate", async (args) => {
+    enforceConsult<BrainValidateArgs>("brainValidate", async (args) => {
       const { draft } = args;
       const issues: string[] = [];
 
@@ -1384,44 +1459,41 @@ async function main() {
   // =====================
   // Tool: brainTemplateSave
   // =====================
-  server.registerTool(
+  const brainTemplateSaveInputSchema: z.ZodRawShape = {
+    name: z
+      .string()
+      .describe("Unique template name (e.g., 'react-component', 'api-route')"),
+    description: z.string().describe("What this template does"),
+    type: z
+      .enum(["snippet", "file", "multifile"])
+      .describe(
+        "Type: snippet (code block), file (single file), multifile (multiple files with structure)",
+      ),
+    content: z
+      .string()
+      .describe(
+        "Template content - code for snippet/file, JSON structure for multifile",
+      ),
+    framework: z
+      .string()
+      .optional()
+      .describe("Framework (e.g., 'nextjs', 'react', 'express')"),
+    language: z
+      .string()
+      .optional()
+      .describe("Programming language (e.g., 'typescript', 'javascript')"),
+    tags: z.array(z.string()).optional().describe("Tags for categorization"),
+  };
+
+  registerTool(
     "brainTemplateSave",
     {
       title: "Save Code Template",
       description:
         "Save a reusable code template (snippet, file, or multi-file structure) to Brain for future use by the agent.",
-      inputSchema: {
-        name: z
-          .string()
-          .describe(
-            "Unique template name (e.g., 'react-component', 'api-route')",
-          ),
-        description: z.string().describe("What this template does"),
-        type: z
-          .enum(["snippet", "file", "multifile"])
-          .describe(
-            "Type: snippet (code block), file (single file), multifile (multiple files with structure)",
-          ),
-        content: z
-          .string()
-          .describe(
-            "Template content - code for snippet/file, JSON structure for multifile",
-          ),
-        framework: z
-          .string()
-          .optional()
-          .describe("Framework (e.g., 'nextjs', 'react', 'express')"),
-        language: z
-          .string()
-          .optional()
-          .describe("Programming language (e.g., 'typescript', 'javascript')"),
-        tags: z
-          .array(z.string())
-          .optional()
-          .describe("Tags for categorization"),
-      },
+      inputSchema: brainTemplateSaveInputSchema,
     },
-    async (args) => {
+    async (args: BrainTemplateSaveArgs) => {
       const { name, description, type, content, framework, language, tags } =
         args;
 
@@ -1471,24 +1543,21 @@ async function main() {
   // =====================
   // Tool: brainTemplateSearch
   // =====================
-  server.registerTool(
+  const brainTemplateSearchInputSchema: z.ZodRawShape = {
+    query: z.string().describe("Search query (template name, description, or tag)"),
+    framework: z.string().optional().describe("Filter by framework"),
+    type: z.enum(["snippet", "file", "multifile"]).optional().describe("Filter by type"),
+  };
+
+  registerTool(
     "brainTemplateSearch",
     {
       title: "Search Code Templates",
       description:
         "Search saved code templates by name, description, or tags. Returns reusable code patterns.",
-      inputSchema: {
-        query: z
-          .string()
-          .describe("Search query (template name, description, or tag)"),
-        framework: z.string().optional().describe("Filter by framework"),
-        type: z
-          .enum(["snippet", "file", "multifile"])
-          .optional()
-          .describe("Filter by type"),
-      },
+      inputSchema: brainTemplateSearchInputSchema,
     },
-    async (args) => {
+    async (args: BrainTemplateSearchArgs) => {
       const { query, framework, type } = args;
 
       const templates = db.searchTemplates(query, framework, type);
@@ -1535,7 +1604,7 @@ async function main() {
   // =====================
   // Tool: brainTemplateApply
   // =====================
-  server.registerTool(
+  registerTool(
     "brainTemplateApply",
     {
       title: "Apply Code Template",
@@ -1545,7 +1614,7 @@ async function main() {
         name: z.string().describe("Template name to apply"),
       },
     },
-    async (args) => {
+    async (args: BrainTemplateApplyArgs) => {
       const { name } = args;
 
       const template = db.getTemplateByName(name);

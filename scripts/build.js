@@ -9,6 +9,26 @@ const { execSync } = require("child_process");
 
 console.log("Building WhytCard Brain (WASM version)...");
 
+// Paths
+const distDir = path.join(__dirname, "..", "dist");
+const nodeModulesDir = path.join(__dirname, "..", "node_modules");
+const mcpServerDir = path.join(__dirname, "..", "mcp-server", "dist");
+
+// Clean generated outputs to avoid stale artifacts in public repos/packages
+try {
+  if (fs.existsSync(distDir)) {
+    fs.rmSync(distDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(distDir, { recursive: true });
+
+  if (fs.existsSync(mcpServerDir)) {
+    fs.rmSync(mcpServerDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(mcpServerDir, { recursive: true });
+} catch (e) {
+  console.warn("⚠️ Could not fully clean build outputs:", e);
+}
+
 // 1. Build avec esbuild
 // On bundle sql.js (JS) mais on doit copier le WASM à côté
 console.log("1. Running esbuild...");
@@ -30,13 +50,6 @@ execSync(
 
 // 3. Copier le fichier WASM de sql.js vers dist/
 console.log("3. Copying sql-wasm.wasm...");
-const distDir = path.join(__dirname, "..", "dist");
-const nodeModulesDir = path.join(__dirname, "..", "node_modules");
-const mcpServerDir = path.join(__dirname, "..", "mcp-server", "dist");
-
-if (!fs.existsSync(distDir)) {
-  fs.mkdirSync(distDir, { recursive: true });
-}
 
 const wasmSrc = path.join(nodeModulesDir, "sql.js", "dist", "sql-wasm.wasm");
 const wasmDest = path.join(distDir, "sql-wasm.wasm");
@@ -51,9 +64,6 @@ if (fs.existsSync(wasmSrc)) {
 
 // 4. Copy MCP server to mcp-server/dist for npm package
 console.log("4. Preparing MCP npm package...");
-if (!fs.existsSync(mcpServerDir)) {
-  fs.mkdirSync(mcpServerDir, { recursive: true });
-}
 fs.copyFileSync(
   path.join(distDir, "mcp-server.cjs"),
   path.join(mcpServerDir, "mcp-server.cjs"),

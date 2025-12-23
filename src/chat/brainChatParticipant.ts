@@ -139,9 +139,9 @@ function showLocalResults(
 
       // Contenu (tronqué si trop long)
       const content =
-        doc.content.length > 1500
-          ? doc.content.substring(0, 1500) + "\n\n*... (tronqué)*"
-          : doc.content;
+        doc.content.length > 1500 ?
+          doc.content.substring(0, 1500) + "\n\n*... (tronqué)*"
+        : doc.content;
       stream.markdown(content + "\n\n");
 
       if (doc.url) {

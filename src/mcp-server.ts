@@ -330,6 +330,7 @@ class BrainDbService {
   private db: Database | null = null;
   private dbPath: string;
   private SQL: SqlJsStatic | null = null;
+  private lastError: string | null = null;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -337,6 +338,7 @@ class BrainDbService {
 
   async connect(): Promise<boolean> {
     try {
+      this.lastError = null;
       // Locate WASM file - check multiple locations
       const wasmCandidates = [
         path.join(__dirname, "sql-wasm.wasm"),
@@ -374,20 +376,29 @@ class BrainDbService {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      if (fs.existsSync(this.dbPath)) {
+      const existed = fs.existsSync(this.dbPath);
+      if (existed) {
         const filebuffer = fs.readFileSync(this.dbPath);
         this.db = new this.SQL.Database(filebuffer);
       } else {
         this.db = new this.SQL.Database();
-        this.initSchema();
+      }
+
+      const mutated = this.initSchema();
+      if (!existed || mutated) {
         this.saveDatabase();
       }
 
       return true;
     } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
       console.error("[BrainMCP] Failed to connect:", error);
       return false;
     }
+  }
+
+  getLastError(): string | null {
+    return this.lastError;
   }
 
   private saveDatabase(): void {
@@ -401,8 +412,10 @@ class BrainDbService {
     }
   }
 
-  private initSchema(): void {
-    if (!this.db) return;
+  private initSchema(): boolean {
+    if (!this.db) return false;
+
+    let mutated = false;
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS docs (
@@ -449,6 +462,97 @@ class BrainDbService {
       CREATE INDEX IF NOT EXISTS idx_templates_framework ON templates(framework);
       CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(type);
     `);
+
+    const getColumns = (table: string): Set<string> => {
+      try {
+        const res = this.db!.exec(`PRAGMA table_info(${table});`);
+        if (!res || res.length === 0) return new Set();
+        const columns = res[0].columns;
+        const values = res[0].values;
+        const nameIdx = columns.indexOf("name");
+        if (nameIdx === -1) return new Set();
+        const names = values
+          .map((row) => String(row[nameIdx] ?? "").trim())
+          .filter(Boolean);
+        return new Set(names);
+      } catch {
+        return new Set();
+      }
+    };
+
+    const ensureColumn = (table: string, column: string, ddl: string) => {
+      const cols = getColumns(table);
+      if (cols.size === 0 || cols.has(column)) {
+        return;
+      }
+      try {
+        this.db!.run(ddl);
+        mutated = true;
+      } catch (error) {
+        console.error(
+          `[BrainMCP] Schema migration failed for ${table}.${column}:`,
+          error,
+        );
+      }
+    };
+
+    ensureColumn(
+      "docs",
+      "version",
+      "ALTER TABLE docs ADD COLUMN version TEXT;",
+    );
+    ensureColumn("docs", "source", "ALTER TABLE docs ADD COLUMN source TEXT;");
+    ensureColumn("docs", "url", "ALTER TABLE docs ADD COLUMN url TEXT;");
+    ensureColumn(
+      "docs",
+      "category",
+      "ALTER TABLE docs ADD COLUMN category TEXT;",
+    );
+    ensureColumn("docs", "domain", "ALTER TABLE docs ADD COLUMN domain TEXT;");
+    ensureColumn(
+      "docs",
+      "created_at",
+      "ALTER TABLE docs ADD COLUMN created_at TEXT;",
+    );
+
+    ensureColumn(
+      "pitfalls",
+      "error",
+      "ALTER TABLE pitfalls ADD COLUMN error TEXT;",
+    );
+    ensureColumn(
+      "pitfalls",
+      "library",
+      "ALTER TABLE pitfalls ADD COLUMN library TEXT;",
+    );
+    ensureColumn(
+      "pitfalls",
+      "code",
+      "ALTER TABLE pitfalls ADD COLUMN code TEXT;",
+    );
+    ensureColumn(
+      "pitfalls",
+      "count",
+      "ALTER TABLE pitfalls ADD COLUMN count INTEGER DEFAULT 1;",
+    );
+    ensureColumn(
+      "pitfalls",
+      "created_at",
+      "ALTER TABLE pitfalls ADD COLUMN created_at TEXT;",
+    );
+
+    ensureColumn(
+      "templates",
+      "created_at",
+      "ALTER TABLE templates ADD COLUMN created_at TEXT;",
+    );
+    ensureColumn(
+      "templates",
+      "updated_at",
+      "ALTER TABLE templates ADD COLUMN updated_at TEXT;",
+    );
+
+    return mutated;
   }
 
   private query<T>(sql: string, params?: any[]): T[] {
@@ -490,23 +594,72 @@ class BrainDbService {
 
   searchDocs(query: string, library?: string, category?: string): Doc[] {
     try {
-      const likePattern = `%${query}%`;
-      let sql = `SELECT * FROM docs WHERE (title LIKE ? OR content LIKE ? OR topic LIKE ?)`;
-      const params: any[] = [likePattern, likePattern, likePattern];
-
-      if (library) {
-        const normalized = library.toLowerCase().replace(/[.\s]+/g, "");
-        sql += ` AND (library LIKE ? OR REPLACE(REPLACE(LOWER(library), '.', ''), ' ', '') LIKE ?)`;
-        params.push(`%${library}%`, `%${normalized}%`);
+      const rawQuery = typeof query === "string" ? query.trim() : "";
+      if (!rawQuery) {
+        return [];
       }
 
-      if (category) {
-        sql += ` AND category = ?`;
-        params.push(category);
+      const likePattern = `%${rawQuery}%`;
+
+      const buildWhere = (where: string) => {
+        let sql = `SELECT * FROM docs WHERE ${where}`;
+        const params: any[] = [];
+
+        if (library) {
+          const normalized = library.toLowerCase().replace(/[.\s]+/g, "");
+          sql += ` AND (library LIKE ? OR REPLACE(REPLACE(LOWER(library), '.', ''), ' ', '') LIKE ?)`;
+          params.push(`%${library}%`, `%${normalized}%`);
+        }
+
+        if (category) {
+          sql += ` AND category = ?`;
+          params.push(category);
+        }
+
+        sql += ` ORDER BY library, topic LIMIT 20`;
+        return { sql, params };
+      };
+
+      const phrase = buildWhere(
+        `(title LIKE ? OR content LIKE ? OR topic LIKE ?)`,
+      );
+      const phraseParams = [
+        likePattern,
+        likePattern,
+        likePattern,
+        ...phrase.params,
+      ];
+      const phraseResults = this.query<Doc>(phrase.sql, phraseParams);
+      if (phraseResults.length > 0) {
+        return phraseResults;
       }
 
-      sql += ` ORDER BY library, topic LIMIT 20`;
-      return this.query<Doc>(sql, params);
+      const tokens = rawQuery
+        .toLowerCase()
+        .split(/[^a-z0-9]+/g)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 3)
+        .slice(0, 8);
+
+      if (tokens.length === 0) {
+        return [];
+      }
+
+      const tokenWhere = tokens
+        .map(() => `(title LIKE ? OR content LIKE ? OR topic LIKE ?)`)
+        .join(" OR ");
+
+      const tokenQuery = buildWhere(`(${tokenWhere})`);
+      const tokenParams: any[] = [];
+      for (const token of tokens) {
+        const p = `%${token}%`;
+        tokenParams.push(p, p, p);
+      }
+
+      return this.query<Doc>(tokenQuery.sql, [
+        ...tokenParams,
+        ...tokenQuery.params,
+      ]);
     } catch (error) {
       console.error("[BrainMCP] Error searching docs:", error);
       return [];
@@ -535,6 +688,7 @@ class BrainDbService {
     if (!this.db) return null;
 
     try {
+      this.lastError = null;
       this.db.run(
         `
         INSERT INTO docs (library, version, topic, title, content, source, url, category, domain)
@@ -559,6 +713,7 @@ class BrainDbService {
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
       console.error("[BrainMCP] Error adding doc:", error);
       return null;
     }
@@ -570,6 +725,7 @@ class BrainDbService {
     if (!this.db) return null;
 
     try {
+      this.lastError = null;
       this.db.run(
         `
         INSERT INTO pitfalls (symptom, solution, error, library, code)
@@ -590,6 +746,7 @@ class BrainDbService {
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
       console.error("[BrainMCP] Error adding pitfall:", error);
       return null;
     }
@@ -682,6 +839,7 @@ class BrainDbService {
     if (!this.db) return null;
 
     try {
+      this.lastError = null;
       this.db.run(
         `INSERT INTO templates (name, description, language, framework, tags, type, content, usage_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -703,6 +861,7 @@ class BrainDbService {
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
       console.error("[BrainMCP] Error adding template:", error);
       return null;
     }
@@ -894,7 +1053,6 @@ async function main() {
             "\n\nNext: fetch OFFICIAL docs (Context7/Tavily), then store them with brainSave (include url), then retry brainConsult.";
           return {
             content: [{ type: "text", text: `${header}\n\n---\n\n${result}` }],
-            isError: true,
           };
         }
       }
@@ -967,11 +1125,14 @@ async function main() {
             ],
           };
         } else {
+          const dbErr = db.getLastError();
           return {
             content: [
               {
                 type: "text",
-                text: "❌ Failed to save documentation to Brain.",
+                text:
+                  "❌ Failed to save documentation to Brain." +
+                  (dbErr ? `\n\nDB error: ${dbErr}` : ""),
               },
             ],
             isError: true,

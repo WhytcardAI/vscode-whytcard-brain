@@ -16,10 +16,7 @@ import {
   InstructionsTreeProvider,
   StatsTreeProvider,
 } from "./providers/treeProviders";
-import {
-  TemplatesTreeProvider,
-  TemplateTreeItem,
-} from "./providers/templatesTreeProvider";
+import { TemplatesTreeProvider, TemplateTreeItem } from "./providers/templatesTreeProvider";
 import {
   disposeBrainService,
   getBrainService,
@@ -29,7 +26,11 @@ import {
 import { registerBrainTools } from "./tools/brainTools";
 import {
   buildCopilotInstructionsContent,
+  buildCursorRulesContent,
+  buildWindsurfRulesContent,
   mergeBrainInstructionsBlock,
+  getConfigFromSettings,
+  type BrainInstructionConfig,
 } from "./utils/copilotUtils";
 import { BrainWebviewPanel } from "./views/webviewPanel";
 import { McpSetupService } from "./services/mcpSetupService";
@@ -108,10 +109,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // Document Provider for brain:// URIs
   const brainDocProvider = new BrainDocumentProvider();
   context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider(
-      "brain",
-      brainDocProvider,
-    ),
+    vscode.workspace.registerTextDocumentContentProvider("brain", brainDocProvider),
   );
 
   // ====== SIDEBAR VIEWS (5 categories) ======
@@ -121,34 +119,25 @@ export async function activate(context: vscode.ExtensionContext) {
   const templatesProvider = new TemplatesTreeProvider();
   const statsProvider = new StatsTreeProvider();
 
-  const instructionsView = vscode.window.createTreeView(
-    "whytcard-brain.instructions",
-    {
-      treeDataProvider: instructionsProvider,
-      showCollapseAll: true,
-    },
-  );
+  const instructionsView = vscode.window.createTreeView("whytcard-brain.instructions", {
+    treeDataProvider: instructionsProvider,
+    showCollapseAll: true,
+  });
 
-  const documentationView = vscode.window.createTreeView(
-    "whytcard-brain.documentation",
-    {
-      treeDataProvider: documentationProvider,
-      showCollapseAll: true,
-    },
-  );
+  const documentationView = vscode.window.createTreeView("whytcard-brain.documentation", {
+    treeDataProvider: documentationProvider,
+    showCollapseAll: true,
+  });
 
   const contextView = vscode.window.createTreeView("whytcard-brain.context", {
     treeDataProvider: contextProvider,
     showCollapseAll: true,
   });
 
-  const templatesView = vscode.window.createTreeView(
-    "whytcard-brain.templates",
-    {
-      treeDataProvider: templatesProvider,
-      showCollapseAll: true,
-    },
-  );
+  const templatesView = vscode.window.createTreeView("whytcard-brain.templates", {
+    treeDataProvider: templatesProvider,
+    showCollapseAll: true,
+  });
 
   const statsView = vscode.window.createTreeView("whytcard-brain.stats", {
     treeDataProvider: statsProvider,
@@ -156,33 +145,25 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   // Status bar
-  statusBarItem = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Right,
-    100,
-  );
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = "whytcard-brain.search";
   updateStatusBar();
   statusBarItem.show();
 
-  if (isCopilotAvailable()) {
-    autoSetupCopilotInstructions().catch((e) => {
-      console.warn(
-        "WhytCard Brain: auto-setup Copilot instructions failed:",
-        e,
-      );
-    });
+  // Auto-setup instructions for all editors
+  autoSetupAllEditorInstructions().catch((e) => {
+    console.warn("WhytCard Brain: auto-setup editor instructions failed:", e);
+  });
 
-    context.subscriptions.push(
-      vscode.workspace.onDidChangeWorkspaceFolders(() => {
-        autoSetupCopilotInstructions().catch((e) => {
-          console.warn(
-            "WhytCard Brain: auto-setup Copilot instructions failed:",
-            e,
-          );
-        });
-      }),
-    );
-  } else {
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      autoSetupAllEditorInstructions().catch((e) => {
+        console.warn("WhytCard Brain: auto-setup editor instructions failed:", e);
+      });
+    }),
+  );
+
+  if (!isCopilotAvailable()) {
     console.log(
       "WhytCard Brain: GitHub Copilot not detected, skipping auto-setup of Copilot instructions.",
     );
@@ -208,9 +189,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const errorMsg = "WhytCard Brain: Impossible de creer la base de donnees";
     console.error(errorMsg);
     console.error("Storage path was:", context.globalStorageUri.fsPath);
-    vscode.window.showErrorMessage(
-      errorMsg + " - Vérifiez la console développeur",
-    );
+    vscode.window.showErrorMessage(errorMsg + " - Vérifiez la console développeur");
     return;
   }
 
@@ -261,19 +240,14 @@ export async function activate(context: vscode.ExtensionContext) {
   // Commandes
   context.subscriptions.push(
     // Refresh (reload DB from disk)
-    vscode.commands.registerCommand("whytcard-brain.refresh", () =>
-      refreshAll(true),
-    ),
+    vscode.commands.registerCommand("whytcard-brain.refresh", () => refreshAll(true)),
 
     // Voir une entrée
-    vscode.commands.registerCommand(
-      "whytcard-brain.viewEntry",
-      (item: BrainTreeItem) => {
-        if (item.entryType && item.entryData) {
-          BrainWebviewPanel.show(context.extensionUri, item.entryData);
-        }
-      },
-    ),
+    vscode.commands.registerCommand("whytcard-brain.viewEntry", (item: BrainTreeItem) => {
+      if (item.entryType && item.entryData) {
+        BrainWebviewPanel.show(context.extensionUri, item.entryData);
+      }
+    }),
 
     // Recherche
     vscode.commands.registerCommand("whytcard-brain.search", async () => {
@@ -316,44 +290,39 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
 
     // Installer les instructions Copilot (sans @brain) dans le workspace
-    vscode.commands.registerCommand(
-      "whytcard-brain.installCopilotInstructions",
-      async () => {
-        const folder = await pickWorkspaceFolder();
-        if (!folder) {
-          return;
-        }
+    vscode.commands.registerCommand("whytcard-brain.installCopilotInstructions", async () => {
+      const folder = await pickWorkspaceFolder();
+      if (!folder) {
+        return;
+      }
 
-        const res = await ensureCopilotInstructionsForFolder(folder);
-        await tryEnableCopilotInstructionFiles(folder);
-        if (res.instructionsUri) {
-          await openFile(res.instructionsUri);
-        }
+      const res = await ensureCopilotInstructionsForFolder(folder);
+      await tryEnableCopilotInstructionFiles(folder);
+      if (res.instructionsUri) {
+        await openFile(res.instructionsUri);
+      }
 
-        if (res.updated) {
-          vscode.window.showInformationMessage(
-            "Copilot instructions mises à jour. Copilot Chat devrait consulter Brain automatiquement.",
-          );
-        } else {
-          vscode.window.showInformationMessage(
-            "Copilot instructions déjà présentes. Copilot Chat devrait consulter Brain automatiquement.",
-          );
-        }
-      },
-    ),
+      if (res.updated) {
+        vscode.window.showInformationMessage(
+          "Copilot instructions mises à jour. Copilot Chat devrait consulter Brain automatiquement.",
+        );
+      } else {
+        vscode.window.showInformationMessage(
+          "Copilot instructions déjà présentes. Copilot Chat devrait consulter Brain automatiquement.",
+        );
+      }
+    }),
 
     // Configure MCP Server
     vscode.commands.registerCommand("whytcard-brain.setupMcp", async () => {
       const result = await mcpSetupService.setupMcpServer();
 
       if (result.success) {
-        vscode.window
-          .showInformationMessage(result.message, "Restart Now")
-          .then((selection) => {
-            if (selection === "Restart Now") {
-              vscode.commands.executeCommand("workbench.action.reloadWindow");
-            }
-          });
+        vscode.window.showInformationMessage(result.message, "Restart Now").then((selection) => {
+          if (selection === "Restart Now") {
+            vscode.commands.executeCommand("workbench.action.reloadWindow");
+          }
+        });
       } else {
         vscode.window.showErrorMessage(result.message);
       }
@@ -374,30 +343,96 @@ export async function activate(context: vscode.ExtensionContext) {
         .join("\n");
 
       if (status.supported && !status.configured) {
-        vscode.window
-          .showInformationMessage(message, "Configure Now")
-          .then((selection) => {
-            if (selection === "Configure Now") {
-              vscode.commands.executeCommand("whytcard-brain.setupMcp");
-            }
-          });
+        vscode.window.showInformationMessage(message, "Configure Now").then((selection) => {
+          if (selection === "Configure Now") {
+            vscode.commands.executeCommand("whytcard-brain.setupMcp");
+          }
+        });
       } else {
         vscode.window.showInformationMessage(message);
       }
     }),
 
     // View Template
-    vscode.commands.registerCommand(
-      "whytcard-brain.viewTemplate",
-      (item: TemplateTreeItem) => {
-        if (item.templateData) {
-          BrainWebviewPanel.showTemplate(
-            context.extensionUri,
-            item.templateData,
-          );
+    vscode.commands.registerCommand("whytcard-brain.viewTemplate", (item: TemplateTreeItem) => {
+      if (item.templateData) {
+        BrainWebviewPanel.showTemplate(context.extensionUri, item.templateData);
+      }
+    }),
+
+    // Open Getting Started Walkthrough
+    vscode.commands.registerCommand("whytcard-brain.openWalkthrough", () => {
+      vscode.commands.executeCommand(
+        "workbench.action.openWalkthrough",
+        "whytcard.whytcard-brain#whytcard-brain.gettingStarted",
+        false,
+      );
+    }),
+
+    // Show Installed AI Rules
+    vscode.commands.registerCommand("whytcard-brain.showInstalledRules", async () => {
+      const folders = vscode.workspace.workspaceFolders;
+      if (!folders || folders.length === 0) {
+        vscode.window.showInformationMessage("No workspace folder open.");
+        return;
+      }
+
+      const rulesFound: string[] = [];
+      for (const folder of folders) {
+        // Check Copilot
+        const copilotUri = vscode.Uri.joinPath(folder.uri, ".github", "copilot-instructions.md");
+        if (await uriExists(copilotUri)) {
+          rulesFound.push(`✅ VS Code/Copilot: ${folder.name}/.github/copilot-instructions.md`);
         }
-      },
-    ),
+        // Check Cursor (new format v0.45+)
+        const cursorNewUri = vscode.Uri.joinPath(folder.uri, ".cursor", "rules", "brain.mdc");
+        if (await uriExists(cursorNewUri)) {
+          rulesFound.push(`✅ Cursor: ${folder.name}/.cursor/rules/brain.mdc`);
+        } else {
+          // Check legacy .cursorrules
+          const cursorLegacyUri = vscode.Uri.joinPath(folder.uri, ".cursorrules");
+          if (await uriExists(cursorLegacyUri)) {
+            rulesFound.push(`⚠️ Cursor (legacy): ${folder.name}/.cursorrules`);
+          }
+        }
+        // Check Windsurf
+        const windsurfUri = vscode.Uri.joinPath(folder.uri, ".windsurf", "rules", "brain.md");
+        if (await uriExists(windsurfUri)) {
+          rulesFound.push(`✅ Windsurf: ${folder.name}/.windsurf/rules/brain.md`);
+        }
+      }
+
+      if (rulesFound.length === 0) {
+        vscode.window
+          .showInformationMessage("No AI rules installed yet.", "Install Now")
+          .then((selection) => {
+            if (selection === "Install Now") {
+              autoSetupAllEditorInstructions();
+            }
+          });
+      } else {
+        vscode.window
+          .showInformationMessage(`Installed AI Rules:\n${rulesFound.join("\n")}`, "View Files")
+          .then((selection) => {
+            if (selection === "View Files") {
+              // Open the first rules file found
+              const folder = folders[0];
+              const copilotUri = vscode.Uri.joinPath(
+                folder.uri,
+                ".github",
+                "copilot-instructions.md",
+              );
+              uriExists(copilotUri).then((exists) => {
+                if (exists) {
+                  vscode.workspace.openTextDocument(copilotUri).then((doc) => {
+                    vscode.window.showTextDocument(doc);
+                  });
+                }
+              });
+            }
+          });
+      }
+    }),
   );
 
   // Views
@@ -410,10 +445,34 @@ export async function activate(context: vscode.ExtensionContext) {
     statusBarItem,
   );
 
-  console.log(
-    "WhytCard Brain active - Copilot utilise automatiquement les outils Brain",
-  );
+  console.log("WhytCard Brain active - Copilot utilise automatiquement les outils Brain");
   console.log("DB:", service.getDbPath());
+
+  // First-run welcome notification
+  showWelcomeNotificationIfNeeded(context);
+}
+
+async function showWelcomeNotificationIfNeeded(context: vscode.ExtensionContext): Promise<void> {
+  const hasSeenWelcome = context.globalState.get<boolean>("whytcard-brain.hasSeenWelcome", false);
+  if (hasSeenWelcome) {
+    return;
+  }
+
+  // Mark as seen immediately to avoid showing twice
+  await context.globalState.update("whytcard-brain.hasSeenWelcome", true);
+
+  const selection = await vscode.window.showInformationMessage(
+    "🧠 WhytCard Brain installed! Your AI assistant will now consult your local knowledge base automatically.",
+    "Get Started",
+    "View Rules",
+    "Dismiss",
+  );
+
+  if (selection === "Get Started") {
+    vscode.commands.executeCommand("whytcard-brain.openWalkthrough");
+  } else if (selection === "View Rules") {
+    vscode.commands.executeCommand("whytcard-brain.showInstalledRules");
+  }
 }
 
 function autoIngestPromptInstructions(
@@ -424,9 +483,7 @@ function autoIngestPromptInstructions(
     return;
   }
 
-  const files = fs
-    .readdirSync(promptsDir)
-    .filter((f) => f.endsWith(".instructions.md"));
+  const files = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".instructions.md"));
   if (files.length === 0) {
     return;
   }
@@ -516,9 +573,7 @@ function setupDbWatcher(dbPath: string, onChangeCallback: () => void): void {
   }
 }
 
-async function pickWorkspaceFolder(): Promise<
-  vscode.WorkspaceFolder | undefined
-> {
+async function pickWorkspaceFolder(): Promise<vscode.WorkspaceFolder | undefined> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
     vscode.window.showErrorMessage(
@@ -538,8 +593,7 @@ async function pickWorkspaceFolder(): Promise<
       folder: f,
     })),
     {
-      placeHolder:
-        "Choisir le dossier du workspace où installer les instructions Copilot",
+      placeHolder: "Choisir le dossier du workspace où installer les instructions Copilot",
     },
   );
 
@@ -560,7 +614,10 @@ async function openFile(uri: vscode.Uri): Promise<void> {
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
-async function autoSetupCopilotInstructions(): Promise<void> {
+/**
+ * Auto-setup instructions for ALL editors (VS Code/Copilot, Cursor, Windsurf)
+ */
+async function autoSetupAllEditorInstructions(): Promise<void> {
   const autoInstall = vscode.workspace
     .getConfiguration()
     .get<boolean>("whytcard-brain.autoInstallCopilotInstructions", true);
@@ -575,70 +632,147 @@ async function autoSetupCopilotInstructions(): Promise<void> {
   }
 
   for (const folder of folders) {
+    // VS Code / GitHub Copilot (.github/copilot-instructions.md)
+    if (isCopilotAvailable()) {
+      try {
+        await ensureCopilotInstructionsForFolder(folder);
+      } catch (err) {
+        console.warn("WhytCard Brain: failed Copilot setup for", folder.uri.fsPath, err);
+      }
+    }
+
+    // Cursor (.cursorrules)
     try {
-      await ensureCopilotInstructionsForFolder(folder);
-    } catch (e) {
-      console.warn(
-        "WhytCard Brain: failed auto-setup for folder",
-        folder.uri.fsPath,
-        e,
-      );
+      await ensureCursorRulesForFolder(folder);
+    } catch (err) {
+      console.warn("WhytCard Brain: failed Cursor setup for", folder.uri.fsPath, err);
+    }
+
+    // Windsurf (.windsurf/rules/brain.md)
+    try {
+      await ensureWindsurfRulesForFolder(folder);
+    } catch (err) {
+      console.warn("WhytCard Brain: failed Windsurf setup for", folder.uri.fsPath, err);
     }
   }
 
+  // Enable Copilot instruction files setting
   const autoEnable = vscode.workspace
     .getConfiguration()
     .get<boolean>("whytcard-brain.autoEnableCopilotInstructionFiles", true);
 
-  if (!autoEnable) {
-    return;
-  }
-
-  for (const folder of folders) {
-    try {
-      await tryEnableCopilotInstructionFiles(folder);
-    } catch {}
+  if (autoEnable && isCopilotAvailable()) {
+    for (const folder of folders) {
+      try {
+        await tryEnableCopilotInstructionFiles(folder);
+      } catch {
+        // Ignore errors for individual folders
+      }
+    }
   }
 }
 
-async function tryEnableCopilotInstructionFiles(
-  folder: vscode.WorkspaceFolder,
-): Promise<void> {
+/**
+ * Get Brain instruction config from VS Code settings
+ */
+function getBrainConfig(): BrainInstructionConfig {
+  const config = vscode.workspace.getConfiguration("whytcard-brain");
+  return getConfigFromSettings(config);
+}
+
+/**
+ * Ensure .cursor/rules/brain.mdc file exists with Brain rules
+ * Cursor v0.45+ uses .cursor/rules/*.mdc format (legacy .cursorrules is deprecated)
+ */
+async function ensureCursorRulesForFolder(folder: vscode.WorkspaceFolder): Promise<void> {
+  const cursorDir = vscode.Uri.joinPath(folder.uri, ".cursor", "rules");
+  const brainRulesUri = vscode.Uri.joinPath(cursorDir, "brain.mdc");
+  const brainContent = buildCursorRulesContent(getBrainConfig());
+
+  // Check if new format exists
+  const newFormatExists = await uriExists(brainRulesUri);
+
+  if (newFormatExists) {
+    // Check if needs update
+    const current = await readTextFile(brainRulesUri);
+    if (current.includes("WhytCard Brain") || current.includes("brainConsult")) {
+      return; // Already has Brain rules
+    }
+  }
+
+  // Create directory and file
+  await vscode.workspace.fs.createDirectory(cursorDir);
+  await vscode.workspace.fs.writeFile(brainRulesUri, Buffer.from(brainContent, "utf8"));
+  console.log("WhytCard Brain: created .cursor/rules/brain.mdc for", folder.name);
+
+  // Also check for legacy .cursorrules and notify user
+  const legacyCursorRulesUri = vscode.Uri.joinPath(folder.uri, ".cursorrules");
+  const legacyExists = await uriExists(legacyCursorRulesUri);
+  if (legacyExists) {
+    console.log(
+      "WhytCard Brain: Note - legacy .cursorrules found. Consider migrating to .cursor/rules/",
+    );
+  }
+}
+
+/**
+ * Ensure .windsurf/rules/brain.md file exists with Brain rules
+ */
+async function ensureWindsurfRulesForFolder(folder: vscode.WorkspaceFolder): Promise<void> {
+  const windsurfDir = vscode.Uri.joinPath(folder.uri, ".windsurf", "rules");
+  const brainRulesUri = vscode.Uri.joinPath(windsurfDir, "brain.md");
+  const exists = await uriExists(brainRulesUri);
+  const brainConfig = getBrainConfig();
+
+  if (exists) {
+    // Check if needs update
+    const current = await readTextFile(brainRulesUri);
+    const brainContent = buildWindsurfRulesContent(brainConfig);
+    const merged = mergeBrainInstructionsBlock(current, brainContent);
+    if (merged.changed) {
+      await vscode.workspace.fs.writeFile(brainRulesUri, Buffer.from(merged.content, "utf8"));
+      console.log("WhytCard Brain: updated .windsurf/rules/brain.md for", folder.name);
+    }
+    return;
+  }
+
+  // Create directory and file
+  await vscode.workspace.fs.createDirectory(windsurfDir);
+  const brainContent = buildWindsurfRulesContent(brainConfig);
+  await vscode.workspace.fs.writeFile(brainRulesUri, Buffer.from(brainContent, "utf8"));
+  console.log("WhytCard Brain: created .windsurf/rules/brain.md for", folder.name);
+}
+
+async function tryEnableCopilotInstructionFiles(folder: vscode.WorkspaceFolder): Promise<void> {
   try {
     const config = vscode.workspace.getConfiguration(
       "github.copilot.chat.codeGeneration",
       folder.uri,
     );
     const target =
-      (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ?
-        vscode.ConfigurationTarget.WorkspaceFolder
-      : vscode.ConfigurationTarget.Workspace;
+      (vscode.workspace.workspaceFolders?.length ?? 0) > 1
+        ? vscode.ConfigurationTarget.WorkspaceFolder
+        : vscode.ConfigurationTarget.Workspace;
     await config.update("useInstructionFiles", true, target);
-  } catch {}
+  } catch {
+    // Ignore config update errors
+  }
 }
 
-async function ensureCopilotInstructionsForFolder(
-  folder: vscode.WorkspaceFolder,
-): Promise<{
+async function ensureCopilotInstructionsForFolder(folder: vscode.WorkspaceFolder): Promise<{
   updated: boolean;
   instructionsUri?: vscode.Uri;
 }> {
   const githubDirUri = vscode.Uri.joinPath(folder.uri, ".github");
-  const instructionsUri = vscode.Uri.joinPath(
-    githubDirUri,
-    "copilot-instructions.md",
-  );
+  const instructionsUri = vscode.Uri.joinPath(githubDirUri, "copilot-instructions.md");
 
   await vscode.workspace.fs.createDirectory(githubDirUri);
 
   const exists = await uriExists(instructionsUri);
-  const brainBlock = buildCopilotInstructionsContent();
+  const brainBlock = buildCopilotInstructionsContent(getBrainConfig());
 
   if (!exists) {
-    await vscode.workspace.fs.writeFile(
-      instructionsUri,
-      Buffer.from(brainBlock, "utf8"),
-    );
+    await vscode.workspace.fs.writeFile(instructionsUri, Buffer.from(brainBlock, "utf8"));
     return { updated: true, instructionsUri };
   }
 
@@ -649,10 +783,7 @@ async function ensureCopilotInstructionsForFolder(
     return { updated: false, instructionsUri };
   }
 
-  await vscode.workspace.fs.writeFile(
-    instructionsUri,
-    Buffer.from(merged.content, "utf8"),
-  );
+  await vscode.workspace.fs.writeFile(instructionsUri, Buffer.from(merged.content, "utf8"));
   return { updated: true, instructionsUri };
 }
 

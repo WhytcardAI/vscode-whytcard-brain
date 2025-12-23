@@ -2,6 +2,40 @@
 
 All notable changes to WhytCard Brain will be documented in this file.
 
+## [1.1.2] - 2024-12-23
+
+### Added
+
+- **Marketplace icon** - Added 128x128 PNG icon for VS Code Marketplace
+- **Template tools** - `brainTemplateSave`, `brainTemplateSearch`, `brainTemplateApply` for reusable code patterns
+- **Strict mode validation** - `brainValidate` tool to check answers are grounded in sources
+- **One-click setup scripts** - `npm run setup:cursor` and `npm run setup:windsurf`
+- **Auto-install rules for all editors** - Automatically creates instruction files for:
+  - VS Code/Copilot: `.github/copilot-instructions.md`
+  - Cursor: `.cursor/rules/brain.mdc` (v0.45+ MDC format, legacy `.cursorrules` deprecated)
+  - Windsurf: `.windsurf/rules/brain.md`
+- **Configurable settings** - Customize Brain behavior:
+  - `strictMode`: off/moderate/strict
+  - `autoSave`: off/ask/always
+  - `instructionStyle`: minimal/standard/verbose
+  - `enabledTools`: enable/disable individual tools
+  - `language`: auto/en/fr
+- **ESLint + Prettier** - Added linting and formatting configuration
+- **SECURITY.md** - Security policy documentation
+- **Dependabot** - Automated dependency updates
+
+### Changed
+
+- Improved MCP server strict mode with configurable environment variables
+- Enhanced CI pipeline with multi-OS matrix (Ubuntu + Windows) and VSIX artifact upload
+- Optimized `.vscodeignore` to exclude dev config files from VSIX
+
+### Fixed
+
+- TypeScript TS2589 error in MCP server (ZodRawShape types)
+- MCP config paths for Windows environments
+- 25 ESLint errors (unused imports, empty blocks, case declarations)
+
 ## [1.1.0] - 2024-12-19
 
 ### Added

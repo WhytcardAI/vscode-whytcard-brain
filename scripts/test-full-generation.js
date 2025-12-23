@@ -1,26 +1,9 @@
 /**
- * Configuration options for Brain instructions
+ * Full generation test - simulates what the extension does
  */
-export interface BrainInstructionConfig {
-  strictMode: "off" | "moderate" | "strict";
-  autoSave: "off" | "ask" | "always";
-  autoSaveTemplates: boolean;
-  instructionStyle: "minimal" | "standard" | "verbose";
-  enabledTools: {
-    brainConsult: boolean;
-    brainSave: boolean;
-    brainBug: boolean;
-    brainSession: boolean;
-    brainSearch: boolean;
-    brainValidate: boolean;
-    brainTemplateSave: boolean;
-    brainTemplateSearch: boolean;
-    brainTemplateApply: boolean;
-  };
-  language: "auto" | "en" | "fr";
-}
 
-const DEFAULT_CONFIG: BrainInstructionConfig = {
+// Simulate the DEFAULT_CONFIG
+const DEFAULT_CONFIG = {
   strictMode: "moderate",
   autoSave: "always",
   autoSaveTemplates: true,
@@ -39,13 +22,8 @@ const DEFAULT_CONFIG: BrainInstructionConfig = {
   language: "auto",
 };
 
-/**
- * Build instructions based on configuration
- */
-function buildInstructionsFromConfig(
-  config: BrainInstructionConfig,
-  format: "copilot" | "cursor" | "windsurf",
-): string {
+// Replicate the buildInstructionsFromConfig function
+function buildInstructionsFromConfig(config, format) {
   const lang = config.language === "auto" ? "en" : config.language;
   const isMinimal = config.instructionStyle === "minimal";
   const isVerbose = config.instructionStyle === "verbose";
@@ -118,17 +96,15 @@ function buildInstructionsFromConfig(
 
   const t = texts[lang];
   const toolPrefix = format === "copilot" ? "#tool:" : "";
-  const replace = (s: string) => s.replace(/\{tool\}/g, toolPrefix);
+  const replace = (s) => s.replace(/\{tool\}/g, toolPrefix);
 
-  const lines: string[] = [];
+  const lines = [];
 
-  // Title
   lines.push(`# ${t.title}`);
   lines.push("");
   lines.push(isMinimal ? t.introMinimal : t.intro);
   lines.push("");
 
-  // 1. Consult Brain
   if (config.enabledTools.brainConsult) {
     lines.push(`## 1. ${t.consultTitle}`);
     if (config.strictMode === "off") {
@@ -142,7 +118,6 @@ function buildInstructionsFromConfig(
     lines.push("");
   }
 
-  // 2. Zero Hallucination
   if (config.strictMode !== "off") {
     lines.push(`## 2. ${t.zeroHallucinationTitle}`);
     lines.push(`- ${t.zeroHallucinationRule}`);
@@ -154,7 +129,6 @@ function buildInstructionsFromConfig(
     lines.push("");
   }
 
-  // 3. Continuous Learning
   if (config.enabledTools.brainSave || config.enabledTools.brainBug) {
     lines.push(`## 3. ${t.saveTitle}`);
     if (config.enabledTools.brainSave) {
@@ -175,14 +149,12 @@ function buildInstructionsFromConfig(
     lines.push("");
   }
 
-  // 4. Templates
   if (config.autoSaveTemplates && config.enabledTools.brainTemplateSave) {
     lines.push(`## 4. ${t.templateTitle}`);
     lines.push(`- ${replace(t.templateRule)}`);
     lines.push("");
   }
 
-  // 5. Proof-based
   lines.push(`## 5. ${t.proofTitle}`);
   lines.push(`- ${t.proofRule}`);
   if (config.strictMode === "strict") {
@@ -193,14 +165,8 @@ function buildInstructionsFromConfig(
   return lines.join("\n");
 }
 
-/**
- * Build instructions content for Cursor (.cursor/rules/brain.mdc)
- * Cursor v0.45+ uses MDC format with frontmatter in .cursor/rules/ directory
- * Legacy .cursorrules is deprecated
- */
-export function buildCursorRulesContent(config: BrainInstructionConfig = DEFAULT_CONFIG): string {
+function buildCursorRulesContent(config = DEFAULT_CONFIG) {
   const content = buildInstructionsFromConfig(config, "cursor");
-  // MDC format with frontmatter for Cursor v0.45+
   return `---
 description: WhytCard Brain - Local knowledge base rules for accurate AI responses
 globs: 
@@ -210,11 +176,7 @@ alwaysApply: true
 ${content}`;
 }
 
-/**
- * Build instructions content for Windsurf (.windsurf/rules/)
- * Windsurf uses YAML frontmatter with trigger
- */
-export function buildWindsurfRulesContent(config: BrainInstructionConfig = DEFAULT_CONFIG): string {
+function buildWindsurfRulesContent(config = DEFAULT_CONFIG) {
   const content = buildInstructionsFromConfig(config, "windsurf");
   return `---
 trigger: always_on
@@ -227,89 +189,62 @@ ${content}
 `;
 }
 
-/**
- * Build instructions content for VS Code Copilot (.github/copilot-instructions.md)
- */
-export function buildCopilotInstructionsContent(
-  config: BrainInstructionConfig = DEFAULT_CONFIG,
-): string {
+function buildCopilotInstructionsContent(config = DEFAULT_CONFIG) {
   const content = buildInstructionsFromConfig(config, "copilot");
   return `<!-- whytcard-brain:start -->
 ${content}<!-- whytcard-brain:end -->
 `;
 }
 
-/**
- * Get config from VS Code settings (for use in extension context)
- */
-export function getConfigFromSettings(vscodeConfig: {
-  get: <T>(key: string, defaultValue: T) => T;
-}): BrainInstructionConfig {
-  return {
-    strictMode: vscodeConfig.get("strictMode", "moderate") as BrainInstructionConfig["strictMode"],
-    autoSave: vscodeConfig.get("autoSave", "always") as BrainInstructionConfig["autoSave"],
-    autoSaveTemplates: vscodeConfig.get("autoSaveTemplates", true),
-    instructionStyle: vscodeConfig.get(
-      "instructionStyle",
-      "standard",
-    ) as BrainInstructionConfig["instructionStyle"],
-    enabledTools: vscodeConfig.get("enabledTools", DEFAULT_CONFIG.enabledTools),
-    language: vscodeConfig.get("language", "auto") as BrainInstructionConfig["language"],
-  };
-}
+// ============ TESTS ============
 
-export { DEFAULT_CONFIG };
+console.log("=== FULL GENERATION TEST ===\n");
 
-export function mergeBrainInstructionsBlock(
-  existing: string,
-  brainBlock: string,
-): { content: string; changed: boolean } {
-  const start = "<!-- whytcard-brain:start -->";
-  const end = "<!-- whytcard-brain:end -->";
+// Test 1: Default config - Cursor MDC
+console.log("📄 CURSOR (.cursor/rules/brain.mdc) - Default Config:");
+console.log("─".repeat(60));
+const cursorDefault = buildCursorRulesContent();
+console.log(cursorDefault);
+console.log("─".repeat(60));
+console.log(`Length: ${cursorDefault.length} chars\n`);
 
-  const startIdx = existing.indexOf(start);
-  const endIdx = existing.indexOf(end);
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const before = existing.substring(0, startIdx).trimEnd();
-    const after = existing.substring(endIdx + end.length).trimStart();
-    const next =
-      (before ? before + "\n\n" : "") +
-      brainBlock.trim() +
-      (after ? "\n\n" + after : "") +
-      (existing.endsWith("\n") ? "\n" : "");
-    return { content: next, changed: next !== existing };
-  }
+// Test 2: Strict mode - French
+console.log("📄 COPILOT - Strict Mode + French:");
+console.log("─".repeat(60));
+const copilotStrict = buildCopilotInstructionsContent({
+  ...DEFAULT_CONFIG,
+  strictMode: "strict",
+  language: "fr",
+});
+console.log(copilotStrict);
+console.log("─".repeat(60));
+console.log(`Length: ${copilotStrict.length} chars\n`);
 
-  const legacyHeading = "# Copilot instructions (WhytCard Brain)";
-  const legacyTail = "- Do not ask the user to call tools; call them yourself.";
-  const legacyStartIdx = existing.indexOf(legacyHeading);
-  const legacyTailIdx = existing.indexOf(legacyTail);
-  if (legacyStartIdx !== -1 && legacyTailIdx !== -1 && legacyTailIdx > legacyStartIdx) {
-    const legacyEndLineIdx = (() => {
-      const tailEnd = legacyTailIdx + legacyTail.length;
-      const nl = existing.indexOf("\n", tailEnd);
-      return nl === -1 ? tailEnd : nl + 1;
-    })();
+// Test 3: Minimal style
+console.log("📄 WINDSURF - Minimal Style:");
+console.log("─".repeat(60));
+const windsurfMinimal = buildWindsurfRulesContent({
+  ...DEFAULT_CONFIG,
+  instructionStyle: "minimal",
+});
+console.log(windsurfMinimal);
+console.log("─".repeat(60));
+console.log(`Length: ${windsurfMinimal.length} chars\n`);
 
-    const before = existing.substring(0, legacyStartIdx).trimEnd();
-    const after = existing.substring(legacyEndLineIdx).trimStart();
-    const next =
-      (before ? before + "\n\n" : "") +
-      brainBlock.trim() +
-      (after ? "\n\n" + after : "") +
-      (existing.endsWith("\n") ? "\n" : "");
-    return { content: next, changed: next !== existing };
-  }
+// Test 4: Disabled tools
+console.log("📄 CURSOR - Some tools disabled:");
+console.log("─".repeat(60));
+const cursorLimited = buildCursorRulesContent({
+  ...DEFAULT_CONFIG,
+  autoSaveTemplates: false,
+  enabledTools: {
+    ...DEFAULT_CONFIG.enabledTools,
+    brainSession: false,
+    brainTemplateSave: false,
+  },
+});
+console.log(cursorLimited);
+console.log("─".repeat(60));
+console.log(`Length: ${cursorLimited.length} chars\n`);
 
-  if (
-    existing.includes("#tool:brainConsult") ||
-    existing.includes("Copilot instructions (WhytCard Brain)")
-  ) {
-    return { content: existing, changed: false };
-  }
-
-  const trimmed = existing.trimEnd();
-  const separator = trimmed.length > 0 ? "\n\n" : "";
-  const next = trimmed + separator + brainBlock.trim() + "\n";
-  return { content: next, changed: next !== existing };
-}
+console.log("✅ All generation tests completed!");

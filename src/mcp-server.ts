@@ -169,10 +169,7 @@ function hasSatisfiedConsult(nowMs: number): boolean {
     return false;
   }
 
-  if (
-    isStrictSourcesRequired() &&
-    sessionState.lastConsultDocsWithUrlCount <= 0
-  ) {
+  if (isStrictSourcesRequired() && sessionState.lastConsultDocsWithUrlCount <= 0) {
     return false;
   }
 
@@ -181,9 +178,8 @@ function hasSatisfiedConsult(nowMs: number): boolean {
 
 function consultRequiredResult(toolName: string): ToolResult {
   const ttlMinutes = Math.max(1, Math.round(getConsultTtlMs() / 60000));
-  const strictHint =
-    isStrictModeEnabled() ?
-      `\n\nStrict mode: brainConsult must return at least one documentation entry` +
+  const strictHint = isStrictModeEnabled()
+    ? `\n\nStrict mode: brainConsult must return at least one documentation entry` +
       `${isStrictSourcesRequired() ? " with a source URL" : ""}. ` +
       `If none, fetch official docs (Context7/Tavily), store them with brainSave (include url), then retry brainConsult.`
     : "";
@@ -217,10 +213,7 @@ function enforceConsult<TArgs extends Record<string, unknown>>(
     const requirement = options?.requirement ?? "satisfied";
 
     const nowMs = Date.now();
-    const ok =
-      requirement === "fresh" ?
-        hasFreshConsult(nowMs)
-      : hasSatisfiedConsult(nowMs);
+    const ok = requirement === "fresh" ? hasFreshConsult(nowMs) : hasSatisfiedConsult(nowMs);
     if (!ok) {
       return consultRequiredResult(toolName);
     }
@@ -409,14 +402,7 @@ class BrainDbService {
       const wasmCandidates = [
         path.join(__dirname, "sql-wasm.wasm"),
         path.join(__dirname, "..", "dist", "sql-wasm.wasm"),
-        path.join(
-          __dirname,
-          "..",
-          "node_modules",
-          "sql.js",
-          "dist",
-          "sql-wasm.wasm",
-        ),
+        path.join(__dirname, "..", "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
       ];
 
       let wasmPath: string | undefined;
@@ -537,9 +523,7 @@ class BrainDbService {
         const values = res[0].values;
         const nameIdx = columns.indexOf("name");
         if (nameIdx === -1) return new Set();
-        const names = values
-          .map((row) => String(row[nameIdx] ?? "").trim())
-          .filter(Boolean);
+        const names = values.map((row) => String(row[nameIdx] ?? "").trim()).filter(Boolean);
         return new Set(names);
       } catch {
         return new Set();
@@ -555,68 +539,25 @@ class BrainDbService {
         this.db!.run(ddl);
         mutated = true;
       } catch (error) {
-        console.error(
-          `[BrainMCP] Schema migration failed for ${table}.${column}:`,
-          error,
-        );
+        console.error(`[BrainMCP] Schema migration failed for ${table}.${column}:`, error);
       }
     };
 
-    ensureColumn(
-      "docs",
-      "version",
-      "ALTER TABLE docs ADD COLUMN version TEXT;",
-    );
+    ensureColumn("docs", "version", "ALTER TABLE docs ADD COLUMN version TEXT;");
     ensureColumn("docs", "source", "ALTER TABLE docs ADD COLUMN source TEXT;");
     ensureColumn("docs", "url", "ALTER TABLE docs ADD COLUMN url TEXT;");
-    ensureColumn(
-      "docs",
-      "category",
-      "ALTER TABLE docs ADD COLUMN category TEXT;",
-    );
+    ensureColumn("docs", "category", "ALTER TABLE docs ADD COLUMN category TEXT;");
     ensureColumn("docs", "domain", "ALTER TABLE docs ADD COLUMN domain TEXT;");
-    ensureColumn(
-      "docs",
-      "created_at",
-      "ALTER TABLE docs ADD COLUMN created_at TEXT;",
-    );
+    ensureColumn("docs", "created_at", "ALTER TABLE docs ADD COLUMN created_at TEXT;");
 
-    ensureColumn(
-      "pitfalls",
-      "error",
-      "ALTER TABLE pitfalls ADD COLUMN error TEXT;",
-    );
-    ensureColumn(
-      "pitfalls",
-      "library",
-      "ALTER TABLE pitfalls ADD COLUMN library TEXT;",
-    );
-    ensureColumn(
-      "pitfalls",
-      "code",
-      "ALTER TABLE pitfalls ADD COLUMN code TEXT;",
-    );
-    ensureColumn(
-      "pitfalls",
-      "count",
-      "ALTER TABLE pitfalls ADD COLUMN count INTEGER DEFAULT 1;",
-    );
-    ensureColumn(
-      "pitfalls",
-      "created_at",
-      "ALTER TABLE pitfalls ADD COLUMN created_at TEXT;",
-    );
+    ensureColumn("pitfalls", "error", "ALTER TABLE pitfalls ADD COLUMN error TEXT;");
+    ensureColumn("pitfalls", "library", "ALTER TABLE pitfalls ADD COLUMN library TEXT;");
+    ensureColumn("pitfalls", "code", "ALTER TABLE pitfalls ADD COLUMN code TEXT;");
+    ensureColumn("pitfalls", "count", "ALTER TABLE pitfalls ADD COLUMN count INTEGER DEFAULT 1;");
+    ensureColumn("pitfalls", "created_at", "ALTER TABLE pitfalls ADD COLUMN created_at TEXT;");
 
-    ensureColumn(
-      "templates",
-      "created_at",
-      "ALTER TABLE templates ADD COLUMN created_at TEXT;",
-    );
-    ensureColumn(
-      "templates",
-      "updated_at",
-      "ALTER TABLE templates ADD COLUMN updated_at TEXT;",
-    );
+    ensureColumn("templates", "created_at", "ALTER TABLE templates ADD COLUMN created_at TEXT;");
+    ensureColumn("templates", "updated_at", "ALTER TABLE templates ADD COLUMN updated_at TEXT;");
 
     return mutated;
   }
@@ -653,9 +594,7 @@ class BrainDbService {
   }
 
   getProjectContext(): Doc[] {
-    return this.query<Doc>(
-      `SELECT * FROM docs WHERE category = 'project' ORDER BY library, topic`,
-    );
+    return this.query<Doc>(`SELECT * FROM docs WHERE category = 'project' ORDER BY library, topic`);
   }
 
   searchDocs(query: string, library?: string, category?: string): Doc[] {
@@ -686,15 +625,8 @@ class BrainDbService {
         return { sql, params };
       };
 
-      const phrase = buildWhere(
-        `(title LIKE ? OR content LIKE ? OR topic LIKE ?)`,
-      );
-      const phraseParams = [
-        likePattern,
-        likePattern,
-        likePattern,
-        ...phrase.params,
-      ];
+      const phrase = buildWhere(`(title LIKE ? OR content LIKE ? OR topic LIKE ?)`);
+      const phraseParams = [likePattern, likePattern, likePattern, ...phrase.params];
       const phraseResults = this.query<Doc>(phrase.sql, phraseParams);
       if (phraseResults.length > 0) {
         return phraseResults;
@@ -722,10 +654,7 @@ class BrainDbService {
         tokenParams.push(p, p, p);
       }
 
-      return this.query<Doc>(tokenQuery.sql, [
-        ...tokenParams,
-        ...tokenQuery.params,
-      ]);
+      return this.query<Doc>(tokenQuery.sql, [...tokenParams, ...tokenQuery.params]);
     } catch (error) {
       console.error("[BrainMCP] Error searching docs:", error);
       return [];
@@ -773,9 +702,7 @@ class BrainDbService {
         ],
       );
 
-      const result = this.queryOne<{ id: number }>(
-        "SELECT last_insert_rowid() as id",
-      );
+      const result = this.queryOne<{ id: number }>("SELECT last_insert_rowid() as id");
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
@@ -785,9 +712,7 @@ class BrainDbService {
     }
   }
 
-  addPitfall(
-    pitfall: Omit<Pitfall, "id" | "count" | "created_at">,
-  ): number | null {
+  addPitfall(pitfall: Omit<Pitfall, "id" | "count" | "created_at">): number | null {
     if (!this.db) return null;
 
     try {
@@ -806,9 +731,7 @@ class BrainDbService {
         ],
       );
 
-      const result = this.queryOne<{ id: number }>(
-        "SELECT last_insert_rowid() as id",
-      );
+      const result = this.queryOne<{ id: number }>("SELECT last_insert_rowid() as id");
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
@@ -818,12 +741,7 @@ class BrainDbService {
     }
   }
 
-  appendToDoc(
-    library: string,
-    topic: string,
-    title: string,
-    newContent: string,
-  ): number | null {
+  appendToDoc(library: string, topic: string, title: string, newContent: string): number | null {
     const existing = this.queryOne<Doc>(
       "SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?",
       [library, topic, title],
@@ -831,10 +749,7 @@ class BrainDbService {
 
     if (existing && existing.id) {
       const updatedContent = existing.content + "\n\n---\n\n" + newContent;
-      this.db!.run("UPDATE docs SET content = ? WHERE id = ?", [
-        updatedContent,
-        existing.id,
-      ]);
+      this.db!.run("UPDATE docs SET content = ? WHERE id = ?", [updatedContent, existing.id]);
       this.saveDatabase();
       return existing.id;
     }
@@ -850,15 +765,9 @@ class BrainDbService {
   }
 
   getStats(): { docs: number; pitfalls: number; templates: number } {
-    const docsRes = this.queryOne<{ c: number }>(
-      "SELECT COUNT(*) as c FROM docs",
-    );
-    const pitfallsRes = this.queryOne<{ c: number }>(
-      "SELECT COUNT(*) as c FROM pitfalls",
-    );
-    const templatesRes = this.queryOne<{ c: number }>(
-      "SELECT COUNT(*) as c FROM templates",
-    );
+    const docsRes = this.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM docs");
+    const pitfallsRes = this.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM pitfalls");
+    const templatesRes = this.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM templates");
     return {
       docs: docsRes ? docsRes.c : 0,
       pitfalls: pitfallsRes ? pitfallsRes.c : 0,
@@ -870,11 +779,7 @@ class BrainDbService {
   // TEMPLATES METHODS
   // =====================
 
-  searchTemplates(
-    query: string,
-    framework?: string,
-    type?: string,
-  ): Template[] {
+  searchTemplates(query: string, framework?: string, type?: string): Template[] {
     try {
       const likePattern = `%${query}%`;
       let sql = `SELECT * FROM templates WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)`;
@@ -899,9 +804,7 @@ class BrainDbService {
     }
   }
 
-  addTemplate(
-    template: Omit<Template, "id" | "created_at" | "updated_at">,
-  ): number | null {
+  addTemplate(template: Omit<Template, "id" | "created_at" | "updated_at">): number | null {
     if (!this.db) return null;
 
     try {
@@ -921,9 +824,7 @@ class BrainDbService {
         ],
       );
 
-      const result = this.queryOne<{ id: number }>(
-        "SELECT last_insert_rowid() as id",
-      );
+      const result = this.queryOne<{ id: number }>("SELECT last_insert_rowid() as id");
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
@@ -934,9 +835,7 @@ class BrainDbService {
   }
 
   getTemplateByName(name: string): Template | null {
-    return this.queryOne<Template>("SELECT * FROM templates WHERE name = ?", [
-      name,
-    ]);
+    return this.queryOne<Template>("SELECT * FROM templates WHERE name = ?", [name]);
   }
 
   incrementTemplateUsage(id: number): void {
@@ -969,9 +868,7 @@ async function main() {
   }
 
   const stats = db.getStats();
-  console.error(
-    `[BrainMCP] Connected - ${stats.docs} docs, ${stats.pitfalls} pitfalls`,
-  );
+  console.error(`[BrainMCP] Connected - ${stats.docs} docs, ${stats.pitfalls} pitfalls`);
 
   const server = new McpServer({
     name: "whytcard-brain",
@@ -989,35 +886,16 @@ async function main() {
   // NOTE: Explicitly type the schema shape to avoid TS2589 ("Type instantiation is excessively deep")
   // caused by complex generic inference inside @modelcontextprotocol/sdk registerTool.
   const brainConsultInputSchema: z.ZodRawShape = {
-    query: z
-      .string()
-      .describe(
-        'Search query (e.g., "nextjs async params", "tailwind dark mode")',
-      ),
-    library: z
-      .string()
-      .optional()
-      .describe("Filter by library (nextjs, react, tailwind, etc.)"),
+    query: z.string().describe('Search query (e.g., "nextjs async params", "tailwind dark mode")'),
+    library: z.string().optional().describe("Filter by library (nextjs, react, tailwind, etc.)"),
     category: z
       .enum(["instruction", "documentation", "project"])
       .optional()
       .describe("Filter docs by category"),
-    includeInstructions: z
-      .boolean()
-      .optional()
-      .describe("Include instructions (default true)"),
-    includeContext: z
-      .boolean()
-      .optional()
-      .describe("Include project context (default true)"),
-    maxDocs: z
-      .number()
-      .optional()
-      .describe("Max docs to return (1-10, default 5)"),
-    maxPitfalls: z
-      .number()
-      .optional()
-      .describe("Max pitfalls to return (0-10, default 3)"),
+    includeInstructions: z.boolean().optional().describe("Include instructions (default true)"),
+    includeContext: z.boolean().optional().describe("Include project context (default true)"),
+    maxDocs: z.number().optional().describe("Max docs to return (1-10, default 5)"),
+    maxPitfalls: z.number().optional().describe("Max pitfalls to return (0-10, default 3)"),
   };
 
   registerTool(
@@ -1071,9 +949,7 @@ async function main() {
       // Search Docs
       const docs = db.searchDocs(query, library, category).slice(0, maxDocs);
       sessionState.lastConsultDocsCount = docs.length;
-      sessionState.lastConsultDocsWithUrlCount = docs.filter(
-        (doc) => !!doc.url,
-      ).length;
+      sessionState.lastConsultDocsWithUrlCount = docs.filter((doc) => !!doc.url).length;
       if (docs.length > 0) {
         parts.push("## 📚 Relevant Documentation\n");
         for (const doc of docs) {
@@ -1102,16 +978,12 @@ async function main() {
       }
 
       const result =
-        parts.length > 0 ?
-          parts.join("\n")
-        : "No relevant information found in Brain.";
+        parts.length > 0 ? parts.join("\n") : "No relevant information found in Brain.";
 
       if (isStrictModeEnabled()) {
         const issues: string[] = [];
         if (docs.length === 0) {
-          issues.push(
-            "No relevant documentation found in Brain for this query.",
-          );
+          issues.push("No relevant documentation found in Brain for this query.");
         }
         if (
           docs.length > 0 &&
@@ -1148,9 +1020,7 @@ async function main() {
       description:
         "Store new documentation in the local Brain database. Use AFTER finding useful info from external sources.",
       inputSchema: {
-        library: z
-          .string()
-          .describe("Library name (nextjs, react, tailwind, etc.)"),
+        library: z.string().describe("Library name (nextjs, react, tailwind, etc.)"),
         topic: z.string().describe("Topic (routing, hooks, styling, etc.)"),
         title: z.string().describe("Documentation title"),
         content: z.string().describe("Documentation content"),
@@ -1257,9 +1127,7 @@ async function main() {
         };
       } else {
         return {
-          content: [
-            { type: "text", text: "❌ Failed to save pitfall to Brain." },
-          ],
+          content: [{ type: "text", text: "❌ Failed to save pitfall to Brain." }],
           isError: true,
         };
       }
@@ -1295,12 +1163,7 @@ async function main() {
         content += `\n\n### Next Steps\n${nextSteps}`;
       }
 
-      const id = db.appendToDoc(
-        project,
-        "session-log",
-        `Session Log - ${project}`,
-        content,
-      );
+      const id = db.appendToDoc(project, "session-log", `Session Log - ${project}`, content);
 
       if (id) {
         return {
@@ -1327,8 +1190,7 @@ async function main() {
     "brainSearch",
     {
       title: "Search Brain",
-      description:
-        "Search the local Brain database for documentation and pitfalls.",
+      description: "Search the local Brain database for documentation and pitfalls.",
       inputSchema: {
         query: z.string().describe("Search query"),
         library: z.string().optional().describe("Filter by library"),
@@ -1387,15 +1249,10 @@ async function main() {
 
       if (isStrictModeEnabled()) {
         if (!head.includes("basé sur") && !head.includes("based on")) {
-          issues.push(
-            'Draft should start with sources (e.g., "Basé sur ..." / "Based on ...").',
-          );
+          issues.push('Draft should start with sources (e.g., "Basé sur ..." / "Based on ...").');
         }
 
-        if (
-          isStrictSourcesRequired() &&
-          sessionState.lastConsultDocsWithUrlCount <= 0
-        ) {
+        if (isStrictSourcesRequired() && sessionState.lastConsultDocsWithUrlCount <= 0) {
           issues.push(
             "Strict mode requires at least one documentation source URL from brainConsult.",
           );
@@ -1403,9 +1260,7 @@ async function main() {
 
         const urlRegex = /https?:\/\/\S+/i;
         if (isStrictSourcesRequired() && !urlRegex.test(trimmed)) {
-          issues.push(
-            "Draft must include at least one URL to the official documentation used.",
-          );
+          issues.push("Draft must include at least one URL to the official documentation used.");
         }
 
         const hedgeRegexes = [
@@ -1436,9 +1291,7 @@ async function main() {
           content: [
             {
               type: "text",
-              text:
-                "❌ Brain validation failed:\n\n" +
-                issues.map((i) => `- ${i}`).join("\n"),
+              text: "❌ Brain validation failed:\n\n" + issues.map((i) => `- ${i}`).join("\n"),
             },
           ],
           isError: true,
@@ -1460,9 +1313,7 @@ async function main() {
   // Tool: brainTemplateSave
   // =====================
   const brainTemplateSaveInputSchema: z.ZodRawShape = {
-    name: z
-      .string()
-      .describe("Unique template name (e.g., 'react-component', 'api-route')"),
+    name: z.string().describe("Unique template name (e.g., 'react-component', 'api-route')"),
     description: z.string().describe("What this template does"),
     type: z
       .enum(["snippet", "file", "multifile"])
@@ -1471,13 +1322,8 @@ async function main() {
       ),
     content: z
       .string()
-      .describe(
-        "Template content - code for snippet/file, JSON structure for multifile",
-      ),
-    framework: z
-      .string()
-      .optional()
-      .describe("Framework (e.g., 'nextjs', 'react', 'express')"),
+      .describe("Template content - code for snippet/file, JSON structure for multifile"),
+    framework: z.string().optional().describe("Framework (e.g., 'nextjs', 'react', 'express')"),
     language: z
       .string()
       .optional()
@@ -1494,8 +1340,7 @@ async function main() {
       inputSchema: brainTemplateSaveInputSchema,
     },
     async (args: BrainTemplateSaveArgs) => {
-      const { name, description, type, content, framework, language, tags } =
-        args;
+      const { name, description, type, content, framework, language, tags } = args;
 
       const existing = db.getTemplateByName(name);
       if (existing) {
@@ -1584,15 +1429,15 @@ async function main() {
           try {
             const tags = JSON.parse(t.tags);
             parts.push(`**Tags:** ${tags.join(", ")}`);
-          } catch {}
+          } catch {
+            // Ignore JSON parse errors for tags
+          }
         }
         parts.push(`**Used:** ${t.usage_count || 0} times`);
         parts.push(
           `**Content Preview:**\n\`\`\`\n${t.content.substring(0, 200)}${t.content.length > 200 ? "..." : ""}\n\`\`\``,
         );
-        parts.push(
-          `\nUse brainTemplateApply with name="${t.name}" to apply this template.\n`,
-        );
+        parts.push(`\nUse brainTemplateApply with name="${t.name}" to apply this template.\n`);
       }
 
       return {
@@ -1608,8 +1453,7 @@ async function main() {
     "brainTemplateApply",
     {
       title: "Apply Code Template",
-      description:
-        "Get the full content of a template to apply it. Increments usage count.",
+      description: "Get the full content of a template to apply it. Increments usage count.",
       inputSchema: {
         name: z.string().describe("Template name to apply"),
       },
@@ -1642,8 +1486,7 @@ async function main() {
         `**Description:** ${template.description}`,
       ];
 
-      if (template.framework)
-        parts.push(`**Framework:** ${template.framework}`);
+      if (template.framework) parts.push(`**Framework:** ${template.framework}`);
       if (template.language) parts.push(`**Language:** ${template.language}`);
 
       parts.push(`\n### Content\n`);

@@ -137,9 +137,7 @@ const usageStats: UsageStats = {
   errors: [],
 };
 
-export function trackUsage(
-  tool: keyof Omit<UsageStats, "lastUsed" | "errors">,
-): void {
+export function trackUsage(tool: keyof Omit<UsageStats, "lastUsed" | "errors">): void {
   usageStats[tool]++;
   usageStats.lastUsed = new Date().toISOString();
 }
@@ -365,11 +363,9 @@ export class BrainService {
 
     // Migration: Add category column if it doesn't exist
     try {
-      this.db.run(
-        "ALTER TABLE docs ADD COLUMN category TEXT DEFAULT 'documentation'",
-      );
+      this.db.run("ALTER TABLE docs ADD COLUMN category TEXT DEFAULT 'documentation'");
       console.log("[BrainService] Added category column to docs table");
-    } catch (e) {
+    } catch {
       // Column likely exists, ignore
     }
 
@@ -379,7 +375,7 @@ export class BrainService {
       console.log("[BrainService] Added domain column to docs table");
       // Auto-fill domain for existing docs
       this.migrateDomainsForExistingDocs();
-    } catch (e) {
+    } catch {
       // Column likely exists, ignore
     }
 
@@ -408,10 +404,7 @@ export class BrainService {
     for (const doc of docs) {
       const domain = inferDomain(doc.library);
       if (domain !== "general") {
-        this.db.run("UPDATE docs SET domain = ? WHERE id = ?", [
-          domain,
-          doc.id,
-        ]);
+        this.db.run("UPDATE docs SET domain = ? WHERE id = ?", [domain, doc.id]);
       }
     }
   }
@@ -421,9 +414,7 @@ export class BrainService {
    */
   private ensureConnection(): boolean {
     if (!this.db) {
-      console.error(
-        "[BrainService] Database not connected. Call connect() first.",
-      );
+      console.error("[BrainService] Database not connected. Call connect() first.");
       return false;
     }
 
@@ -465,10 +456,7 @@ export class BrainService {
 
   public getDocsByLibrary(library: string): Doc[] {
     if (!this.ensureConnection()) return [];
-    return this.query<Doc>(
-      `SELECT * FROM docs WHERE library = ? ORDER BY topic`,
-      [library],
-    );
+    return this.query<Doc>(`SELECT * FROM docs WHERE library = ? ORDER BY topic`, [library]);
   }
 
   public getDocById(id: number): Doc | null {
@@ -500,9 +488,7 @@ export class BrainService {
       );
 
       // Get last ID
-      const result = this.queryOne<{ id: number }>(
-        "SELECT last_insert_rowid() as id",
-      );
+      const result = this.queryOne<{ id: number }>("SELECT last_insert_rowid() as id");
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
@@ -527,10 +513,7 @@ export class BrainService {
   /**
    * Update an existing doc
    */
-  public updateDoc(
-    id: number,
-    updates: Partial<Omit<Doc, "id" | "created_at">>,
-  ): boolean {
+  public updateDoc(id: number, updates: Partial<Omit<Doc, "id" | "created_at">>): boolean {
     if (!this.ensureConnection()) return false;
 
     try {
@@ -594,10 +577,11 @@ export class BrainService {
    */
   public findDoc(library: string, topic: string, title: string): Doc | null {
     if (!this.ensureConnection()) return null;
-    return this.queryOne<Doc>(
-      "SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?",
-      [library, topic, title],
-    );
+    return this.queryOne<Doc>("SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?", [
+      library,
+      topic,
+      title,
+    ]);
   }
 
   /**
@@ -688,12 +672,10 @@ export class BrainService {
   /**
    * Get project context docs (category = 'project')
    */
-  public getProjectContext(projectPath?: string): Doc[] {
+  public getProjectContext(_projectPath?: string): Doc[] {
     if (!this.ensureConnection()) return [];
     // For now, return all project docs. Could filter by path later.
-    return this.query<Doc>(
-      `SELECT * FROM docs WHERE category = 'project' ORDER BY library, topic`,
-    );
+    return this.query<Doc>(`SELECT * FROM docs WHERE category = 'project' ORDER BY library, topic`);
   }
 
   /**
@@ -701,10 +683,9 @@ export class BrainService {
    */
   public getDocsByCategory(category: string): Doc[] {
     if (!this.ensureConnection()) return [];
-    return this.query<Doc>(
-      `SELECT * FROM docs WHERE category = ? ORDER BY library, topic`,
-      [category],
-    );
+    return this.query<Doc>(`SELECT * FROM docs WHERE category = ? ORDER BY library, topic`, [
+      category,
+    ]);
   }
 
   // =====================
@@ -713,9 +694,7 @@ export class BrainService {
 
   public getAllPitfalls(): Pitfall[] {
     if (!this.ensureConnection()) return [];
-    return this.query<Pitfall>(
-      `SELECT * FROM pitfalls ORDER BY count DESC, created_at DESC`,
-    );
+    return this.query<Pitfall>(`SELECT * FROM pitfalls ORDER BY count DESC, created_at DESC`);
   }
 
   public getPitfallById(id: number): Pitfall | null {
@@ -723,9 +702,7 @@ export class BrainService {
     return this.queryOne<Pitfall>("SELECT * FROM pitfalls WHERE id = ?", [id]);
   }
 
-  public addPitfall(
-    pitfall: Omit<Pitfall, "id" | "count" | "created_at">,
-  ): number | null {
+  public addPitfall(pitfall: Omit<Pitfall, "id" | "count" | "created_at">): number | null {
     if (!this.ensureConnection()) return null;
 
     try {
@@ -743,9 +720,7 @@ export class BrainService {
         ],
       );
 
-      const result = this.queryOne<{ id: number }>(
-        "SELECT last_insert_rowid() as id",
-      );
+      const result = this.queryOne<{ id: number }>("SELECT last_insert_rowid() as id");
       this.saveDatabase();
       return result ? result.id : null;
     } catch (error) {
@@ -817,10 +792,7 @@ export class BrainService {
     if (!this.ensureConnection()) return null;
 
     try {
-      const results = this.query<Template>(
-        "SELECT * FROM templates WHERE id = ?",
-        [id],
-      );
+      const results = this.query<Template>("SELECT * FROM templates WHERE id = ?", [id]);
       return results[0] || null;
     } catch (error) {
       console.error("Error getting template:", error);
@@ -832,10 +804,7 @@ export class BrainService {
     if (!this.ensureConnection()) return null;
 
     try {
-      const results = this.query<Template>(
-        "SELECT * FROM templates WHERE name = ?",
-        [name],
-      );
+      const results = this.query<Template>("SELECT * FROM templates WHERE name = ?", [name]);
       return results[0] || null;
     } catch (error) {
       console.error("Error getting template by name:", error);
@@ -843,11 +812,7 @@ export class BrainService {
     }
   }
 
-  public searchTemplates(
-    query: string,
-    framework?: string,
-    language?: string,
-  ): Template[] {
+  public searchTemplates(query: string, framework?: string, language?: string): Template[] {
     if (!this.ensureConnection()) return [];
 
     try {
@@ -883,16 +848,7 @@ export class BrainService {
     if (!this.ensureConnection()) return null;
 
     try {
-      const {
-        name,
-        description,
-        language,
-        framework,
-        tags,
-        type,
-        content,
-        usage_count,
-      } = template;
+      const { name, description, language, framework, tags, type, content, usage_count } = template;
 
       this.db!.run(
         `INSERT INTO templates (name, description, language, framework, tags, type, content, usage_count)
@@ -911,10 +867,7 @@ export class BrainService {
 
       this.saveDatabase();
 
-      const results = this.query<Template>(
-        "SELECT * FROM templates WHERE name = ?",
-        [name],
-      );
+      const results = this.query<Template>("SELECT * FROM templates WHERE name = ?", [name]);
       return results[0] || null;
     } catch (error) {
       console.error("Error adding template:", error);
@@ -964,10 +917,7 @@ export class BrainService {
 
       values.push(id);
 
-      this.db!.run(
-        `UPDATE templates SET ${fields.join(", ")} WHERE id = ?`,
-        values,
-      );
+      this.db!.run(`UPDATE templates SET ${fields.join(", ")} WHERE id = ?`, values);
 
       this.saveDatabase();
       return true;
@@ -1042,15 +992,9 @@ export class BrainService {
     }
 
     try {
-      const docsRes = this.queryOne<{ c: number }>(
-        "SELECT COUNT(*) as c FROM docs",
-      );
-      const pitfallsRes = this.queryOne<{ c: number }>(
-        "SELECT COUNT(*) as c FROM pitfalls",
-      );
-      const templatesRes = this.queryOne<{ c: number }>(
-        "SELECT COUNT(*) as c FROM templates",
-      );
+      const docsRes = this.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM docs");
+      const pitfallsRes = this.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM pitfalls");
+      const templatesRes = this.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM templates");
 
       const docs = docsRes ? docsRes.c : 0;
       const pitfalls = pitfallsRes ? pitfallsRes.c : 0;

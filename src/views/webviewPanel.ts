@@ -4,11 +4,7 @@
  */
 
 import * as vscode from "vscode";
-import {
-  getBrainService,
-  type Doc,
-  type Template,
-} from "../services/brainService";
+import { type Doc, type Template } from "../services/brainService";
 
 export class BrainWebviewPanel {
   public static currentPanel: BrainWebviewPanel | undefined;
@@ -90,9 +86,7 @@ export class BrainWebviewPanel {
             `# ${this._currentDoc.title}\n\n` +
             `**Library:** ${this._currentDoc.library}\n` +
             `**Topic:** ${this._currentDoc.topic}\n` +
-            (this._currentDoc.url ?
-              `**Source:** ${this._currentDoc.url}\n`
-            : "") +
+            (this._currentDoc.url ? `**Source:** ${this._currentDoc.url}\n` : "") +
             `\n---\n\n${this._currentDoc.content}`;
           await vscode.env.clipboard.writeText(fullContent);
           vscode.window.showInformationMessage("Document complet copié");
@@ -215,13 +209,13 @@ export class BrainWebviewPanel {
   <div class="description">${template.description}</div>
 
   ${
-    tags.length > 0 ?
-      `
+    tags.length > 0
+      ? `
     <div class="tags">
       ${tags.map((tag: string) => `<span class="tag">#${tag}</span>`).join("")}
     </div>
   `
-    : ""
+      : ""
   }
 
   <h3>Content</h3>
@@ -430,23 +424,23 @@ export class BrainWebviewPanel {
         ${this._esc(doc.topic)}
       </span>
       ${
-        doc.version ?
-          `
+        doc.version
+          ? `
       <span class="badge">
         <svg viewBox="0 0 16 16"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 1a7 7 0 110 14A7 7 0 018 1z"/><path d="M8 4a.5.5 0 01.5.5v3.793l2.354 2.353a.5.5 0 01-.708.708L7.5 8.707V4.5A.5.5 0 018 4z"/></svg>
         v${this._esc(doc.version)}
       </span>`
-        : ""
+          : ""
       }
     </div>
     ${
-      doc.url ?
-        `
+      doc.url
+        ? `
     <div class="source-banner">
       <svg viewBox="0 0 16 16"><path d="M4.715 6.542L3.343 7.914a3 3 0 104.243 4.243l1.828-1.829A3 3 0 008.586 5.5L8 6.086a1.001 1.001 0 00-.154.199 2 2 0 01.861 3.337L6.88 11.45a2 2 0 11-2.83-2.83l.793-.792a4.018 4.018 0 01-.128-1.287z"/><path d="M6.586 4.672A3 3 0 007.414 9.5l.775-.776a2 2 0 01-.896-3.346L9.12 3.55a2 2 0 012.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 00-4.243-4.243L6.586 4.672z"/></svg>
       <a href="#" onclick="openUrl('${this._esc(doc.url)}')">${this._esc(doc.url)}</a>
     </div>`
-      : ""
+        : ""
     }
   </div>
   <div class="main-content">
@@ -504,10 +498,7 @@ export class BrainWebviewPanel {
   }
 
   private _esc(text: string): string {
-    return (text || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   private _markdown(content: string): string {
@@ -520,7 +511,7 @@ export class BrainWebviewPanel {
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/^\* (.+)$/gm, "<li>$1</li>")
       .replace(/(<li>.*<\/li>\n?)+/g, "<ul>$&</ul>")
-      .replace(/^\> (.+)$/gm, "<blockquote>$1</blockquote>")
+      .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>")
       .replace(/\n\n/g, "</p><p>")
       .replace(/\n/g, "<br>");
   }

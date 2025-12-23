@@ -1,146 +1,166 @@
-# WhytCard Brain - Release Package
+# 🧠 WhytCard Brain - Release v1.1.2
 
-**Local knowledge base for AI assistants** — Store instructions, documentation, and project context to supercharge your AI-assisted development.
-
-Works with **GitHub Copilot** (VS Code), **Cascade** (Windsurf), and **Cursor AI**.
+> **Base de connaissances locale pour assistants IA** - Fonctionne avec VS Code, Cursor et Windsurf
 
 ---
 
-## 📦 Package Contents
+## 📦 Contenu du dossier
 
-- `whytcard-brain.vsix` - Extension package (ready to install)
-- `INSTALL.md` - Detailed installation guide
-- `QUICKSTART.md` - Quick start guide
-- `CHANGELOG.md` - Version history
-
----
-
-## 🚀 Quick Installation
-
-### For Windsurf / Cursor Users (Recommended)
-
-1. **Install the extension:**
-
-   ```bash
-   code --install-extension whytcard-brain.vsix
-   ```
-
-   Or use your editor's Extensions panel → Install from VSIX
-
-2. **Wait for auto-configuration:**
-   - A notification will appear after 3 seconds
-   - Click **"Configure Now"**
-   - Restart when prompted
-   - ✅ Done! Brain is ready to use with Cascade AI
-
-### For VS Code Users
-
-1. **Install the extension:**
-
-   ```bash
-   code --install-extension whytcard-brain.vsix
-   ```
-
-2. **Install GitHub Copilot** (if not already installed)
-
-3. **Start using Brain:**
-   - Use `@brain` in Copilot Chat
-   - Or run: **Brain: Install Copilot Chat Instructions** for automatic Brain consultation
-
----
-
-## ✨ Key Features
-
-### 🤖 AI Integration
-
-- **6 Language Model Tools** automatically used by Copilot/Cascade
-- **MCP Server** for Windsurf and Cursor (auto-configured)
-- **Chat Participant** (`@brain`) for interactive queries
-- **Strict Mode** to enforce grounded, documented responses
-
-### 📚 Knowledge Management
-
-- **5 Views:** Instructions, Documentation, Context, Templates, Stats
-- **Domain Grouping:** Website, Mobile, Backend, DevOps, General
-- **Auto-Sync:** Real-time updates across windows
-- **Search:** Full-text search across stored entries
-
-### 🛠️ Developer Experience
-
-- **Sidebar Panel** for browsing knowledge (agent-driven workflow)
-- **Webview Display** for rich document viewing
-- **Copilot Instructions** integration
-- **Status Bar** indicator
-
----
-
-## 📖 Documentation
-
-- **[INSTALL.md](./INSTALL.md)** - Detailed installation guide with troubleshooting
-- **[QUICKSTART.md](./QUICKSTART.md)** - Get started in 5 minutes
-- **[CHANGELOG.md](./CHANGELOG.md)** - Version history and updates
-
-For the full README and development guide, visit:
-https://github.com/WhytCard/vscode-whytcard-brain
-
----
-
-## 🔐 Verification
-
-To verify the integrity of the extension package:
-
-```bash
-# Windows (PowerShell)
-Get-FileHash whytcard-brain.vsix -Algorithm SHA256
-
-# macOS/Linux
-shasum -a 256 whytcard-brain.vsix
+```
+release/
+├── whytcard-brain-1.1.2.vsix    # Extension VS Code/Cursor/Windsurf
+├── mcp_config.json              # Config MCP pour Cursor/Windsurf
+├── install-windows.bat          # Installation automatique Windows
+├── install-mac-linux.sh         # Installation automatique Mac/Linux
+└── README.md                    # Ce fichier
 ```
 
-Compare the output with the hash in `checksums.txt`.
+---
+
+## 🚀 Installation Rapide
+
+### Option 1: Script automatique (recommandé)
+
+**Windows:**
+
+```cmd
+install-windows.bat
+```
+
+**Mac/Linux:**
+
+```bash
+chmod +x install-mac-linux.sh
+./install-mac-linux.sh
+```
+
+### Option 2: Installation manuelle
+
+#### Étape 1: Installer l'extension
+
+**VS Code:**
+
+```bash
+code --install-extension whytcard-brain-1.1.2.vsix
+```
+
+**Cursor:**
+
+```bash
+cursor --install-extension whytcard-brain-1.1.2.vsix
+```
+
+**Windsurf:**
+
+```bash
+windsurf --install-extension whytcard-brain-1.1.2.vsix
+```
+
+#### Étape 2: Configurer MCP (Cursor/Windsurf uniquement)
+
+Copier `mcp_config.json` vers:
+
+| Éditeur                | Chemin                                            |
+| ---------------------- | ------------------------------------------------- |
+| **Cursor** (Windows)   | `%USERPROFILE%\.cursor\mcp.json`                  |
+| **Cursor** (Mac)       | `~/.cursor/mcp.json`                              |
+| **Windsurf** (Windows) | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` |
+| **Windsurf** (Mac)     | `~/.codeium/windsurf/mcp_config.json`             |
 
 ---
 
-## 🆘 Support
+## ⚙️ Configuration
 
-### Common Issues
+### Settings VS Code/Cursor/Windsurf
 
-**"MCP not configured"**
-→ Run: **Brain: Configure MCP Server (Windsurf/Cursor)**
+Ouvrir Settings → chercher "**Brain**":
 
-**"Node.js not found"**
-→ Install Node.js from [nodejs.org](https://nodejs.org) and restart
+| Setting            | Options                      | Description              |
+| ------------------ | ---------------------------- | ------------------------ |
+| `strictMode`       | off / moderate / strict      | Niveau d'exigence        |
+| `autoSave`         | off / ask / always           | Sauvegarde auto des docs |
+| `instructionStyle` | minimal / standard / verbose | Longueur des règles      |
+| `language`         | auto / en / fr               | Langue des instructions  |
 
-**"Database connection failed"**
-→ Check: **Brain: Show MCP Status** for database path
+### Variables d'environnement MCP
 
-### Get Help
+Dans `mcp_config.json`:
 
-- 📝 Read [INSTALL.md](./INSTALL.md) for detailed troubleshooting
-- 🐛 Report issues on GitHub
-- 💬 Check existing discussions
-
----
-
-## 📋 System Requirements
-
-- **Editor:** VS Code 1.89.0+, Windsurf, or Cursor
-- **Node.js:** v18+ (for MCP server)
-- **Copilot:** GitHub Copilot (optional, for VS Code)
-- **OS:** Windows 10+, macOS 10.15+, Linux
+| Variable                       | Valeur        | Description                        |
+| ------------------------------ | ------------- | ---------------------------------- |
+| `BRAIN_DB_PATH`                | (vide = auto) | Chemin vers brain.db               |
+| `BRAIN_REQUIRE_CONSULT`        | 1             | Forcer brainConsult avant réponse  |
+| `BRAIN_STRICT_MODE`            | 1             | Mode strict (vérification sources) |
+| `BRAIN_STRICT_REQUIRE_SOURCES` | 1             | Exiger URLs sources                |
 
 ---
 
-## 📄 License
+## 📁 Fichiers auto-générés
 
-MIT License - See LICENSE file for details
+L'extension crée automatiquement ces fichiers dans votre workspace:
+
+| Éditeur         | Fichier                           |
+| --------------- | --------------------------------- |
+| VS Code/Copilot | `.github/copilot-instructions.md` |
+| Cursor          | `.cursor/rules/brain.mdc`         |
+| Windsurf        | `.windsurf/rules/brain.md`        |
+
+Ces fichiers forcent l'IA à:
+
+1. ✅ Consulter Brain avant de répondre
+2. ✅ Ne jamais halluciner
+3. ✅ Sauvegarder les nouvelles connaissances
+4. ✅ Citer ses sources
 
 ---
 
-## What's New
+## 🎯 Utilisation
 
-See [CHANGELOG.md](./CHANGELOG.md) for version history.
+**Vous n'avez rien à faire !** Demandez simplement à votre IA:
+
+```
+"Comment faire X avec React?"
+```
+
+L'IA va automatiquement:
+
+1. Appeler `brainConsult` pour vérifier les docs locales
+2. Chercher la doc officielle si nécessaire
+3. Sauvegarder les infos utiles avec `brainSave`
+4. Citer ses sources dans la réponse
 
 ---
 
-Enjoy using WhytCard Brain!
+## 🔧 Dépannage
+
+### L'extension ne s'installe pas
+
+```bash
+# Vérifier la version de VS Code/Cursor
+code --version  # Doit être >= 1.89.0
+```
+
+### MCP ne fonctionne pas (Cursor/Windsurf)
+
+1. Vérifier que `mcp_config.json` est au bon endroit
+2. Redémarrer l'éditeur
+3. Vérifier les logs: `Ctrl+Shift+U` → Output → "WhytCard Brain"
+
+### Les règles ne s'appliquent pas
+
+1. Ouvrir un workspace (pas juste un fichier)
+2. Vérifier que les fichiers de règles existent
+3. Commande: `Brain: Show Installed Rules`
+
+---
+
+## 📞 Support
+
+- **GitHub Issues**: [github.com/WhytcardAI/vscode-whytcard-brain/issues](https://github.com/WhytcardAI/vscode-whytcard-brain/issues)
+- **Documentation**: [github.com/WhytcardAI/vscode-whytcard-brain](https://github.com/WhytcardAI/vscode-whytcard-brain)
+
+---
+
+**Version:** 1.1.2  
+**Date:** 2024-12-23  
+**Licence:** MIT

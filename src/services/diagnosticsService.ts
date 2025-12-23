@@ -1,6 +1,4 @@
-
-import * as vscode from 'vscode';
-import { getBrainService } from './brainService';
+import { getBrainService } from "./brainService";
 
 export class DiagnosticsService {
   /**
@@ -23,31 +21,31 @@ export class DiagnosticsService {
         known: true,
         pitfall: {
           symptom: best.symptom,
-          solution: best.solution
-        }
+          solution: best.solution,
+        },
       };
     }
 
     // Not known, suggest creating a new one
     // We clean up the error message to be a good "symptom" title
     const symptom = this.cleanErrorToSymptom(errorMessage);
-    
+
     return {
       known: false,
       suggestion: {
         symptom,
-        error: errorMessage
-      }
+        error: errorMessage,
+      },
     };
   }
 
   private cleanErrorToSymptom(error: string): string {
     // Take first line, remove timestamps, file paths, etc.
-    let line = error.split('\n')[0];
-    line = line.replace(/\[.*?\]/g, ''); // remove [time]
-    line = line.replace(/\(.*?:\d+:\d+\)/g, ''); // remove file paths
+    let line = error.split("\n")[0];
+    line = line.replace(/\[.*?\]/g, ""); // remove [time]
+    line = line.replace(/\(.*?:\d+:\d+\)/g, ""); // remove file paths
     if (line.length > 100) {
-      line = line.substring(0, 97) + '...';
+      line = line.substring(0, 97) + "...";
     }
     return line.trim();
   }

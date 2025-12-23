@@ -11,11 +11,7 @@
  */
 
 import * as vscode from "vscode";
-import {
-  getBrainService,
-  type Doc,
-  type Pitfall,
-} from "../services/brainService";
+import { getBrainService, type Doc, type Pitfall } from "../services/brainService";
 
 interface ChatResult extends vscode.ChatResult {
   metadata?: {
@@ -28,9 +24,7 @@ interface ChatResult extends vscode.ChatResult {
 /**
  * Register the @brain chat participant
  */
-export function registerBrainChatParticipant(
-  context: vscode.ExtensionContext,
-): vscode.Disposable {
+export function registerBrainChatParticipant(_context: vscode.ExtensionContext): vscode.Disposable {
   const chat = (vscode as any).chat as
     | { createChatParticipant?: (...args: any[]) => any }
     | undefined;
@@ -80,18 +74,14 @@ async function handleRequest(
 
   if (!query) {
     stream.markdown(`## 🧠 WhytCard Brain\n\n`);
-    stream.markdown(
-      `Pose-moi une question technique et je cherche dans ma base.\n\n`,
-    );
+    stream.markdown(`Pose-moi une question technique et je cherche dans ma base.\n\n`);
     stream.markdown(`**Exemples:**\n`);
     stream.markdown(`- \`@brain next.js async params\`\n`);
     stream.markdown(`- \`@brain tailwind dark mode\`\n`);
     stream.markdown(`- \`@brain react useEffect cleanup\`\n`);
 
     const stats = service.getStats();
-    stream.markdown(
-      `\n---\n📚 **${stats.docs}** docs | ⚠️ **${stats.pitfalls}** bugs connus\n`,
-    );
+    stream.markdown(`\n---\n📚 **${stats.docs}** docs | ⚠️ **${stats.pitfalls}** bugs connus\n`);
 
     return { metadata: { localFound: true, docsCount: 0, pitfallsCount: 0 } };
   }
@@ -120,7 +110,7 @@ function showLocalResults(
   stream: vscode.ChatResponseStream,
   docs: Doc[],
   pitfalls: Pitfall[],
-  query: string,
+  _query: string,
 ): ChatResult {
   stream.markdown(`## ✅ Trouvé dans la base\n\n`);
 
@@ -139,9 +129,9 @@ function showLocalResults(
 
       // Contenu (tronqué si trop long)
       const content =
-        doc.content.length > 1500 ?
-          doc.content.substring(0, 1500) + "\n\n*... (tronqué)*"
-        : doc.content;
+        doc.content.length > 1500
+          ? doc.content.substring(0, 1500) + "\n\n*... (tronqué)*"
+          : doc.content;
       stream.markdown(content + "\n\n");
 
       if (doc.url) {
@@ -157,9 +147,7 @@ function showLocalResults(
 
     for (const p of pitfalls.slice(0, 2)) {
       // Add reference to "Used references"
-      const safeSymptom = p.symptom
-        .replace(/[^a-zA-Z0-9-_ ]/g, "")
-        .substring(0, 30);
+      const safeSymptom = p.symptom.replace(/[^a-zA-Z0-9-_ ]/g, "").substring(0, 30);
       const uri = vscode.Uri.parse(`brain://pitfall/${p.id}/${safeSymptom}`);
       stream.reference(uri);
 
@@ -194,7 +182,7 @@ function showNotFound(
   stream: vscode.ChatResponseStream,
   query: string,
   library: string | undefined,
-  service: ReturnType<typeof getBrainService>,
+  _service: ReturnType<typeof getBrainService>,
 ): ChatResult {
   stream.markdown(`## ❌ Pas trouvé dans la base\n\n`);
   stream.markdown(`Recherche: **${query}**\n\n`);
@@ -221,9 +209,7 @@ function showNotFound(
   stream.markdown("```\n\n");
 
   stream.markdown(`---\n`);
-  stream.markdown(
-    `*💡 Quand tu trouves la doc, dis-moi et je l'enregistre automatiquement.*\n`,
-  );
+  stream.markdown(`*💡 Quand tu trouves la doc, dis-moi et je l'enregistre automatiquement.*\n`);
 
   return {
     metadata: {

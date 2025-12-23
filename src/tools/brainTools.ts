@@ -4,11 +4,7 @@
  */
 
 import * as vscode from "vscode";
-import {
-  getBrainService,
-  trackError,
-  trackUsage,
-} from "../services/brainService";
+import { getBrainService, trackError, trackUsage } from "../services/brainService";
 import { ProjectInitService } from "../services/projectInitService";
 import { DiagnosticsService } from "../services/diagnosticsService";
 
@@ -57,6 +53,7 @@ interface TemplateApplyInput {
 }
 
 // Pas d'input requis pour getInstructions et getContext
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface GetInstructionsInput {
   // vide - retourne toutes les instructions
 }
@@ -108,9 +105,7 @@ class GetInstructionsTool implements vscode.LanguageModelTool<GetInstructionsInp
         result += "---\n\n";
       }
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(result),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`getInstructions: ${errMsg}`);
@@ -163,16 +158,12 @@ class GetContextTool implements vscode.LanguageModelTool<GetContextInput> {
         result += "---\n\n";
       }
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(result),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`getContext: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de la recuperation du contexte: ${errMsg}`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de la recuperation du contexte: ${errMsg}`),
       ]);
     }
   }
@@ -247,16 +238,12 @@ class SearchDocsTool implements vscode.LanguageModelTool<SearchDocsInput> {
         }
       }
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(result),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`searchDocs: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de la recherche dans Brain: ${errMsg}`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de la recherche dans Brain: ${errMsg}`),
       ]);
     }
   }
@@ -295,12 +282,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       const includeInstr = includeInstructions !== false;
       const includeCtx = includeContext !== false;
-      const docsLimit =
-        typeof maxDocs === "number" ? Math.max(1, Math.min(10, maxDocs)) : 5;
+      const docsLimit = typeof maxDocs === "number" ? Math.max(1, Math.min(10, maxDocs)) : 5;
       const pitfallsLimit =
-        typeof maxPitfalls === "number" ?
-          Math.max(0, Math.min(10, maxPitfalls))
-        : 3;
+        typeof maxPitfalls === "number" ? Math.max(0, Math.min(10, maxPitfalls)) : 3;
 
       let result = `## Brain consult\n\n`;
       result += `**Query:** ${query}\n`;
@@ -325,9 +309,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
             result += `**Library:** ${doc.library} | **Topic:** ${doc.topic}\n\n`;
             // Keep it concise to avoid flooding the chat
             const content =
-              doc.content.length > 1200 ?
-                doc.content.substring(0, 1200) + "\n\n... (truncated)"
-              : doc.content;
+              doc.content.length > 1200
+                ? doc.content.substring(0, 1200) + "\n\n... (truncated)"
+                : doc.content;
             result += content + `\n\n---\n\n`;
           }
 
@@ -349,9 +333,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
             result += `#### ${doc.title}\n`;
             result += `**Scope:** ${doc.library} | **Topic:** ${doc.topic}\n\n`;
             const content =
-              doc.content.length > 1200 ?
-                doc.content.substring(0, 1200) + "\n\n... (truncated)"
-              : doc.content;
+              doc.content.length > 1200
+                ? doc.content.substring(0, 1200) + "\n\n... (truncated)"
+                : doc.content;
             result += content + `\n\n---\n\n`;
           }
 
@@ -368,11 +352,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       // If we already included instructions, avoid returning instruction docs again unless user explicitly asked.
       const docs =
-        includeInstr && !category ?
-          docsAll.filter(
-            (d) => (d.category || "documentation") !== "instruction",
-          )
-        : docsAll;
+        includeInstr && !category
+          ? docsAll.filter((d) => (d.category || "documentation") !== "instruction")
+          : docsAll;
 
       result += `### Local documentation (${docs.length})\n\n`;
       if (docs.length === 0) {
@@ -386,9 +368,9 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
           }
           result += `\n\n`;
           const content =
-            doc.content.length > 1500 ?
-              doc.content.substring(0, 1500) + "\n\n... (truncated)"
-            : doc.content;
+            doc.content.length > 1500
+              ? doc.content.substring(0, 1500) + "\n\n... (truncated)"
+              : doc.content;
           result += content + `\n\n`;
           if (doc.url) {
             result += `Source: ${doc.url}\n\n`;
@@ -420,16 +402,12 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       result += `> Hint: If nothing is found locally, use Context7/Tavily and then save via #brainSave.\n`;
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(result),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`consult: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors du consult Brain: ${errMsg}`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors du consult Brain: ${errMsg}`),
       ]);
     }
   }
@@ -484,17 +462,13 @@ class StoreDocTool implements vscode.LanguageModelTool<StoreDocInput> {
       }
 
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de l'enregistrement de la documentation.`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement de la documentation.`),
       ]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`storeDoc: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de l'enregistrement: ${errMsg}`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement: ${errMsg}`),
       ]);
     }
   }
@@ -554,17 +528,13 @@ class StorePitfallTool implements vscode.LanguageModelTool<StorePitfallInput> {
       }
 
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de l'enregistrement du bug.`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement du bug.`),
       ]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`storePitfall: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de l'enregistrement: ${errMsg}`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement: ${errMsg}`),
       ]);
     }
   }
@@ -652,9 +622,7 @@ class LogSessionTool implements vscode.LanguageModelTool<LogSessionInput> {
       }
 
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de l'enregistrement de la session.`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de l'enregistrement de la session.`),
       ]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
@@ -676,6 +644,7 @@ class LogSessionTool implements vscode.LanguageModelTool<LogSessionInput> {
 }
 
 // Interface pour initProject
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface InitProjectInput {
   // pas d'input nécessaire
 }
@@ -693,16 +662,12 @@ class InitProjectTool implements vscode.LanguageModelTool<InitProjectInput> {
       const initService = new ProjectInitService();
       const plan = await initService.generateInitPlan();
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(plan),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(plan)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`initProject: ${errMsg}`);
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(
-          `Erreur lors de l'initialisation: ${errMsg}`,
-        ),
+        new vscode.LanguageModelTextPart(`Erreur lors de l'initialisation: ${errMsg}`),
       ]);
     }
   }
@@ -809,9 +774,7 @@ class TemplateSearchTool implements vscode.LanguageModelTool<TemplateSearchInput
         result += `Utilise whytcard-brain_templateApply avec name="${t.name}" pour l'appliquer.\n\n`;
       }
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(result),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`templateSearch: ${errMsg}`);
@@ -841,8 +804,7 @@ class TemplateSaveTool implements vscode.LanguageModelTool<TemplateSaveInput> {
   ): Promise<vscode.LanguageModelToolResult> {
     try {
       trackUsage("storeDocCount");
-      const { name, description, type, content, framework, language, tags } =
-        options.input;
+      const { name, description, type, content, framework, language, tags } = options.input;
       const service = getBrainService();
 
       const existing = service.getTemplateByName(name);
@@ -877,9 +839,7 @@ class TemplateSaveTool implements vscode.LanguageModelTool<TemplateSaveInput> {
         ]);
       } else {
         return new vscode.LanguageModelToolResult([
-          new vscode.LanguageModelTextPart(
-            "❌ Échec de la sauvegarde du template.",
-          ),
+          new vscode.LanguageModelTextPart("❌ Échec de la sauvegarde du template."),
         ]);
       }
     } catch (error) {
@@ -931,8 +891,7 @@ class TemplateApplyTool implements vscode.LanguageModelTool<TemplateApplyInput> 
       let result = `## ✅ Template: ${template.name}\n\n`;
       result += `**Type:** ${template.type}\n`;
       result += `**Description:** ${template.description}\n`;
-      if (template.framework)
-        result += `**Framework:** ${template.framework}\n`;
+      if (template.framework) result += `**Framework:** ${template.framework}\n`;
       if (template.language) result += `**Language:** ${template.language}\n`;
       result += `\n### Contenu\n\n`;
 
@@ -943,9 +902,7 @@ class TemplateApplyTool implements vscode.LanguageModelTool<TemplateApplyInput> 
         result += `\`\`\`\n${template.content}\n\`\`\``;
       }
 
-      return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart(result),
-      ]);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
       trackError(`templateApply: ${errMsg}`);
@@ -973,17 +930,12 @@ export function registerBrainTools(context: vscode.ExtensionContext): void {
     | { registerTool?: (...args: any[]) => vscode.Disposable }
     | undefined;
   if (!lm || typeof lm.registerTool !== "function") {
-    console.log(
-      "Brain LM tools not available in this host. Skipping LM tool registration.",
-    );
+    console.log("Brain LM tools not available in this host. Skipping LM tool registration.");
     return;
   }
 
   context.subscriptions.push(
-    lm.registerTool(
-      "whytcard-brain_getInstructions",
-      new GetInstructionsTool(),
-    ),
+    lm.registerTool("whytcard-brain_getInstructions", new GetInstructionsTool()),
     lm.registerTool("whytcard-brain_getContext", new GetContextTool()),
     lm.registerTool("whytcard-brain_searchDocs", new SearchDocsTool()),
     lm.registerTool("whytcard-brain_consult", new ConsultTool()),

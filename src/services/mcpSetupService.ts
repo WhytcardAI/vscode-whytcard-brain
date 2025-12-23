@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { execSync } from "child_process";
 
 interface McpServerConfig {
   command: string;
@@ -47,20 +48,10 @@ export class McpSetupService {
     const homeDir = os.homedir();
 
     switch (env) {
-      case "windsurf":
+      case "windsurf": {
         // Windsurf Next ou stable
-        const windsurfNextPath = path.join(
-          homeDir,
-          ".codeium",
-          "windsurf-next",
-          "mcp_config.json",
-        );
-        const windsurfPath = path.join(
-          homeDir,
-          ".codeium",
-          "windsurf",
-          "mcp_config.json",
-        );
+        const windsurfNextPath = path.join(homeDir, ".codeium", "windsurf-next", "mcp_config.json");
+        const windsurfPath = path.join(homeDir, ".codeium", "windsurf", "mcp_config.json");
 
         if (fs.existsSync(windsurfNextPath)) {
           return windsurfNextPath;
@@ -74,8 +65,9 @@ export class McpSetupService {
           fs.mkdirSync(windsurfDir, { recursive: true });
         }
         return windsurfNextPath;
+      }
 
-      case "cursor":
+      case "cursor": {
         // Cursor MCP config path can differ depending on versions/setups.
         // Prefer the existing file if present.
         const cursorMcpJson = path.join(homeDir, ".cursor", "mcp.json");
@@ -90,6 +82,7 @@ export class McpSetupService {
           fs.mkdirSync(cursorDir, { recursive: true });
         }
         return cursorPath;
+      }
 
       case "vscode":
         // VS Code n'a pas de support MCP natif pour l'instant
@@ -105,8 +98,7 @@ export class McpSetupService {
    */
   private getDbPath(): string {
     const env = this.detectEnvironment();
-    const appDataDir =
-      process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+    const appDataDir = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
 
     let baseDir: string;
     switch (env) {
@@ -122,13 +114,7 @@ export class McpSetupService {
         break;
     }
 
-    return path.join(
-      baseDir,
-      "User",
-      "globalStorage",
-      "whytcard.whytcard-brain",
-      "brain.db",
-    );
+    return path.join(baseDir, "User", "globalStorage", "whytcard.whytcard-brain", "brain.db");
   }
 
   /**
@@ -148,7 +134,7 @@ export class McpSetupService {
       const configContent = fs.readFileSync(mcpConfigPath, "utf8");
       const config: McpConfig = JSON.parse(configContent);
       return config.mcpServers && "whytcard-brain" in config.mcpServers;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -193,11 +179,7 @@ export class McpSetupService {
       }
 
       // Chemin vers le serveur MCP
-      const mcpServerPath = path.join(
-        this.context.extensionPath,
-        "dist",
-        "mcp-server.cjs",
-      );
+      const mcpServerPath = path.join(this.context.extensionPath, "dist", "mcp-server.cjs");
 
       // Vérifier que le serveur existe
       if (!fs.existsSync(mcpServerPath)) {
@@ -212,8 +194,7 @@ export class McpSetupService {
       if (!nodePath) {
         return {
           success: false,
-          message:
-            "Node.js not found. Please install Node.js and restart the editor.",
+          message: "Node.js not found. Please install Node.js and restart the editor.",
         };
       }
 
@@ -279,16 +260,15 @@ export class McpSetupService {
 
     // Essayer via PATH
     try {
-      const { execSync } = require("child_process");
       const result =
-        process.platform === "win32" ?
-          execSync("where node", { encoding: "utf8" }).trim()
-        : execSync("which node", { encoding: "utf8" }).trim();
+        process.platform === "win32"
+          ? execSync("where node", { encoding: "utf8" }).trim()
+          : execSync("which node", { encoding: "utf8" }).trim();
 
       if (result) {
         return result.split("\n")[0]; // Prendre la première ligne
       }
-    } catch (error) {
+    } catch {
       // Ignore
     }
 

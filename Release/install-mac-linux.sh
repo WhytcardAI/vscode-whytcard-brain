@@ -18,8 +18,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VSIX_FILE="$SCRIPT_DIR/whytcard-brain-1.1.2.vsix"
 MCP_CONFIG="$SCRIPT_DIR/mcp_config.json"
 
+# Check prerequisites
+echo "Vérification des prérequis..."
+echo ""
+
+# Check Node.js
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}❌ Node.js non trouvé!${NC}"
+    echo "   Installez Node.js 18+ depuis: https://nodejs.org/"
+    echo "   Ou via brew: brew install node"
+    exit 1
+fi
+
+NODE_VERSION=$(node --version)
+echo -e "  ${GREEN}✅ Node.js $NODE_VERSION${NC}"
+
 # Check if VSIX exists
 if [ ! -f "$VSIX_FILE" ]; then
+    echo ""
     echo -e "${RED}❌ Erreur: whytcard-brain-1.1.2.vsix non trouvé!${NC}"
     echo "   Assurez-vous que le fichier VSIX est dans le même dossier."
     exit 1

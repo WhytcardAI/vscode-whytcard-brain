@@ -4,14 +4,28 @@
 
 ---
 
+## ⚠️ Prérequis
+
+- **Node.js 18+** : [nodejs.org](https://nodejs.org/) (nécessaire pour MCP)
+- **VS Code 1.89+**, **Cursor 0.45+** ou **Windsurf**
+
+Vérifier Node.js :
+
+```bash
+node --version  # Doit afficher v18.x.x ou supérieur
+```
+
+---
+
 ## 📦 Contenu du dossier
 
 ```
 release/
 ├── whytcard-brain-1.1.2.vsix    # Extension VS Code/Cursor/Windsurf
-├── mcp_config.json              # Config MCP pour Cursor/Windsurf
+├── mcp_config.json              # Config MCP (utilise npx)
 ├── install-windows.bat          # Installation automatique Windows
 ├── install-mac-linux.sh         # Installation automatique Mac/Linux
+├── TROUBLESHOOTING.md           # Guide de dépannage
 └── README.md                    # Ce fichier
 ```
 
@@ -21,11 +35,7 @@ release/
 
 ### Option 1: Script automatique (recommandé)
 
-**Windows:**
-
-```cmd
-install-windows.bat
-```
+**Windows:** Double-cliquez sur `install-windows.bat`
 
 **Mac/Linux:**
 
@@ -33,6 +43,13 @@ install-windows.bat
 chmod +x install-mac-linux.sh
 ./install-mac-linux.sh
 ```
+
+Le script va:
+
+1. ✅ Détecter vos éditeurs installés
+2. ✅ Installer l'extension VSIX
+3. ✅ Configurer MCP pour Cursor/Windsurf
+4. ✅ Vous guider pour les prochaines étapes
 
 ### Option 2: Installation manuelle
 
@@ -58,14 +75,16 @@ windsurf --install-extension whytcard-brain-1.1.2.vsix
 
 #### Étape 2: Configurer MCP (Cursor/Windsurf uniquement)
 
+> ⚠️ **VS Code n'a pas besoin de cette étape** - l'extension fonctionne directement avec Copilot.
+
 Copier `mcp_config.json` vers:
 
-| Éditeur                | Chemin                                            |
-| ---------------------- | ------------------------------------------------- |
-| **Cursor** (Windows)   | `%USERPROFILE%\.cursor\mcp.json`                  |
-| **Cursor** (Mac)       | `~/.cursor/mcp.json`                              |
-| **Windsurf** (Windows) | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` |
-| **Windsurf** (Mac)     | `~/.codeium/windsurf/mcp_config.json`             |
+| Éditeur      | Windows                                           | Mac/Linux                             |
+| ------------ | ------------------------------------------------- | ------------------------------------- |
+| **Cursor**   | `%USERPROFILE%\.cursor\mcp.json`                  | `~/.cursor/mcp.json`                  |
+| **Windsurf** | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` |
+
+> 💡 **Note:** Si le dossier n'existe pas, créez-le.
 
 ---
 
@@ -84,14 +103,16 @@ Ouvrir Settings → chercher "**Brain**":
 
 ### Variables d'environnement MCP
 
-Dans `mcp_config.json`:
+Dans `mcp_config.json`, vous pouvez ajuster:
 
-| Variable                       | Valeur        | Description                        |
-| ------------------------------ | ------------- | ---------------------------------- |
-| `BRAIN_DB_PATH`                | (vide = auto) | Chemin vers brain.db               |
-| `BRAIN_REQUIRE_CONSULT`        | 1             | Forcer brainConsult avant réponse  |
-| `BRAIN_STRICT_MODE`            | 1             | Mode strict (vérification sources) |
-| `BRAIN_STRICT_REQUIRE_SOURCES` | 1             | Exiger URLs sources                |
+| Variable                       | Défaut        | Description                                      |
+| ------------------------------ | ------------- | ------------------------------------------------ |
+| `BRAIN_DB_PATH`                | (vide = auto) | Chemin vers brain.db                             |
+| `BRAIN_REQUIRE_CONSULT`        | `1`           | L'IA doit appeler brainConsult avant de répondre |
+| `BRAIN_STRICT_MODE`            | `0`           | Mode strict (0=désactivé, 1=activé)              |
+| `BRAIN_STRICT_REQUIRE_SOURCES` | `0`           | Exiger URLs sources (0=non, 1=oui)               |
+
+> 💡 **Conseil:** Commencez avec les valeurs par défaut, puis activez le mode strict une fois familiarisé.
 
 ---
 

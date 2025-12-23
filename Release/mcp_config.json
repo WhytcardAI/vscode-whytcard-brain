@@ -2,13 +2,13 @@
   "mcpServers": {
     "whytcard-brain": {
       "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-server-whytcard-brain@latest"],
+      "args": ["-y", "whytcard-brain-mcp@latest"],
       "env": {
         "BRAIN_DB_PATH": "",
         "BRAIN_REQUIRE_CONSULT": "1",
         "BRAIN_CONSULT_TTL_MS": "1200000",
-        "BRAIN_STRICT_MODE": "1",
-        "BRAIN_STRICT_REQUIRE_SOURCES": "1",
+        "BRAIN_STRICT_MODE": "0",
+        "BRAIN_STRICT_REQUIRE_SOURCES": "0",
         "BRAIN_REQUIRE_CONSULT_EVERY_TOOL": "0"
       },
       "disabled": false,

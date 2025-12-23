@@ -8,8 +8,26 @@ echo ║         🧠 WhytCard Brain - Installation Windows             ║
 echo ╚══════════════════════════════════════════════════════════════╝
 echo.
 
+:: Check prerequisites
+echo Vérification des prérequis...
+echo.
+
+:: Check Node.js
+where node >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ❌ Node.js non trouvé!
+    echo    Installez Node.js 18+ depuis: https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=1" %%v in ('node --version') do set NODE_VERSION=%%v
+echo   ✅ Node.js %NODE_VERSION%
+
 :: Check if VSIX exists
 if not exist "%~dp0whytcard-brain-1.1.2.vsix" (
+    echo.
     echo ❌ Erreur: whytcard-brain-1.1.2.vsix non trouvé!
     echo    Assurez-vous que le fichier VSIX est dans le même dossier.
     pause

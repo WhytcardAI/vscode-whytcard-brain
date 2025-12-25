@@ -823,7 +823,8 @@
     "check": "npm run lint && npm run typecheck && npm run build && npm test && node scripts/test-brain-policy.js",
     "package:vsix": "npx --yes @vscode/vsce package",
     "setup:cursor": "node scripts/one-click.js --editor cursor",
-    "setup:windsurf": "node scripts/one-click.js --editor windsurf"
+    "setup:windsurf": "node scripts/one-click.js --editor windsurf",
+    "regenerate:instructions": "node scripts/regenerate-instructions.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

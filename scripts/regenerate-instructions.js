@@ -1,26 +1,14 @@
+#!/usr/bin/env node
 /**
- * Configuration options for Brain instructions
+ * Script to regenerate Brain instruction files for all editors
+ * Run: node scripts/regenerate-instructions.js
  */
-export interface BrainInstructionConfig {
-  strictMode: "off" | "moderate" | "strict";
-  autoSave: "off" | "ask" | "always";
-  autoSaveTemplates: boolean;
-  instructionStyle: "minimal" | "standard" | "verbose";
-  enabledTools: {
-    brainConsult: boolean;
-    brainSave: boolean;
-    brainBug: boolean;
-    brainSession: boolean;
-    brainSearch: boolean;
-    brainValidate: boolean;
-    brainTemplateSave: boolean;
-    brainTemplateSearch: boolean;
-    brainTemplateApply: boolean;
-  };
-  language: "auto" | "en" | "fr";
-}
 
-const DEFAULT_CONFIG: BrainInstructionConfig = {
+const fs = require("fs");
+const path = require("path");
+
+// Default config matching extension defaults
+const DEFAULT_CONFIG = {
   strictMode: "moderate",
   autoSave: "always",
   autoSaveTemplates: true,
@@ -36,16 +24,13 @@ const DEFAULT_CONFIG: BrainInstructionConfig = {
     brainTemplateSearch: true,
     brainTemplateApply: true,
   },
-  language: "auto",
+  language: "en",
 };
 
 /**
  * Build instructions based on configuration
  */
-function buildInstructionsFromConfig(
-  config: BrainInstructionConfig,
-  format: "copilot" | "cursor" | "windsurf",
-): string {
+function buildInstructionsFromConfig(config, format) {
   const lang = config.language === "auto" ? "en" : config.language;
   const isMinimal = config.instructionStyle === "minimal";
   const isVerbose = config.instructionStyle === "verbose";
@@ -118,9 +103,9 @@ function buildInstructionsFromConfig(
 
   const t = texts[lang];
   const toolPrefix = format === "copilot" ? "#tool:" : "";
-  const replace = (s: string) => s.replace(/\{tool\}/g, toolPrefix);
+  const replace = (s) => s.replace(/\{tool\}/g, toolPrefix);
 
-  const lines: string[] = [];
+  const lines = [];
 
   // Title
   lines.push(`# ${t.title}`);
@@ -244,31 +229,7 @@ function buildInstructionsFromConfig(
   return lines.join("\n");
 }
 
-/**
- * Build instructions content for Cursor (.cursor/rules/brain.mdc)
- * Cursor v0.45+ uses MDC format with frontmatter in .cursor/rules/ directory
- * Legacy .cursorrules is deprecated
- */
-export function buildCursorRulesContent(config: BrainInstructionConfig = DEFAULT_CONFIG): string {
-  const content = buildInstructionsFromConfig(config, "cursor");
-  // MDC format with frontmatter for Cursor v0.45+
-  return `---
-description: WhytCard Brain - Local knowledge base rules for accurate AI responses
-globs: 
-alwaysApply: true
----
-
-<!-- whytcard-brain:start -->
-
-${content}
-<!-- whytcard-brain:end -->`;
-}
-
-/**
- * Build instructions content for Windsurf (.windsurf/rules/)
- * Windsurf uses YAML frontmatter with trigger
- */
-export function buildWindsurfRulesContent(config: BrainInstructionConfig = DEFAULT_CONFIG): string {
+function buildWindsurfRulesContent(config = DEFAULT_CONFIG) {
   const content = buildInstructionsFromConfig(config, "windsurf");
   return `---
 trigger: always_on
@@ -281,130 +242,65 @@ ${content}
 `;
 }
 
-/**
- * Build instructions content for VS Code Copilot (.github/copilot-instructions.md)
- */
-export function buildCopilotInstructionsContent(
-  config: BrainInstructionConfig = DEFAULT_CONFIG,
-): string {
+function buildCursorRulesContent(config = DEFAULT_CONFIG) {
+  const content = buildInstructionsFromConfig(config, "cursor");
+  return `---
+description: WhytCard Brain - Local knowledge base rules for accurate AI responses
+globs: 
+alwaysApply: true
+---
+
+<!-- whytcard-brain:start -->
+
+${content}
+<!-- whytcard-brain:end -->
+`;
+}
+
+function buildCopilotInstructionsContent(config = DEFAULT_CONFIG) {
   const content = buildInstructionsFromConfig(config, "copilot");
   return `<!-- whytcard-brain:start -->
 ${content}<!-- whytcard-brain:end -->
 `;
 }
 
-/**
- * Get config from VS Code settings (for use in extension context)
- */
-export function getConfigFromSettings(vscodeConfig: {
-  get: <T>(key: string, defaultValue: T) => T;
-}): BrainInstructionConfig {
-  return {
-    strictMode: vscodeConfig.get("strictMode", "moderate") as BrainInstructionConfig["strictMode"],
-    autoSave: vscodeConfig.get("autoSave", "always") as BrainInstructionConfig["autoSave"],
-    autoSaveTemplates: vscodeConfig.get("autoSaveTemplates", true),
-    instructionStyle: vscodeConfig.get(
-      "instructionStyle",
-      "standard",
-    ) as BrainInstructionConfig["instructionStyle"],
-    enabledTools: vscodeConfig.get("enabledTools", DEFAULT_CONFIG.enabledTools),
-    language: vscodeConfig.get("language", "auto") as BrainInstructionConfig["language"],
-  };
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    console.log(`  Created directory: ${dirPath}`);
+  }
 }
 
-export { DEFAULT_CONFIG };
-
-export function mergeBrainInstructionsBlock(
-  existing: string,
-  brainBlock: string,
-): { content: string; changed: boolean } {
-  const start = "<!-- whytcard-brain:start -->";
-  const end = "<!-- whytcard-brain:end -->";
-
-  const eol = existing.includes("\r\n") ? "\r\n" : "\n";
-  const normalizeEol = (value: string) => value.replace(/\r\n/g, "\n");
-  const denormalizeEol = (value: string) => (eol === "\r\n" ? value.replace(/\n/g, "\r\n") : value);
-
-  const existingNormalized = normalizeEol(existing);
-  const brainBlockNormalized = normalizeEol(brainBlock);
-
-  const isYamlFrontmatterBlock = (value: string) => value.startsWith("---\n");
-
-  if (isYamlFrontmatterBlock(brainBlockNormalized.trimStart())) {
-    const lastEndIdx = existingNormalized.lastIndexOf(end);
-    const tailRaw = lastEndIdx !== -1 ? existingNormalized.substring(lastEndIdx + end.length) : "";
-    const tail = tailRaw.trimStart();
-
-    const nextNormalized =
-      brainBlockNormalized.trimEnd() +
-      (tail.trim().length > 0 ? "\n\n" + tail.trimEnd() : "") +
-      "\n";
-    const next = denormalizeEol(nextNormalized);
-    return { content: next, changed: next !== existing };
-  }
-
-  const stripDuplicateBrainBlocks = (value: string): string => {
-    let out = value;
-    while (true) {
-      const s = out.indexOf(start);
-      if (s === -1) break;
-      const e = out.indexOf(end, s + start.length);
-      if (e === -1) break;
-
-      const before = out.substring(0, s).trimEnd();
-      const after = out.substring(e + end.length).trimStart();
-      out = (before ? before + "\n\n" : "") + after;
-    }
-    return out;
-  };
-
-  const startIdx = existingNormalized.indexOf(start);
-  const endIdx = startIdx !== -1 ? existingNormalized.indexOf(end, startIdx + start.length) : -1;
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const before = existingNormalized.substring(0, startIdx).trimEnd();
-    const afterRaw = existingNormalized.substring(endIdx + end.length);
-    const after = stripDuplicateBrainBlocks(afterRaw).trimStart();
-    const nextNormalized =
-      (before ? before + "\n\n" : "") +
-      brainBlockNormalized.trim() +
-      (after ? "\n\n" + after : "") +
-      (existingNormalized.endsWith("\n") ? "\n" : "");
-    const next = denormalizeEol(nextNormalized);
-    return { content: next, changed: next !== existing };
-  }
-
-  const legacyHeading = "# Copilot instructions (WhytCard Brain)";
-  const legacyTail = "- Do not ask the user to call tools; call them yourself.";
-  const legacyStartIdx = existingNormalized.indexOf(legacyHeading);
-  const legacyTailIdx = existingNormalized.indexOf(legacyTail);
-  if (legacyStartIdx !== -1 && legacyTailIdx !== -1 && legacyTailIdx > legacyStartIdx) {
-    const legacyEndLineIdx = (() => {
-      const tailEnd = legacyTailIdx + legacyTail.length;
-      const nl = existingNormalized.indexOf("\n", tailEnd);
-      return nl === -1 ? tailEnd : nl + 1;
-    })();
-
-    const before = existingNormalized.substring(0, legacyStartIdx).trimEnd();
-    const after = existingNormalized.substring(legacyEndLineIdx).trimStart();
-    const nextNormalized =
-      (before ? before + "\n\n" : "") +
-      brainBlockNormalized.trim() +
-      (after ? "\n\n" + after : "") +
-      (existingNormalized.endsWith("\n") ? "\n" : "");
-    const next = denormalizeEol(nextNormalized);
-    return { content: next, changed: next !== existing };
-  }
-
-  if (
-    existingNormalized.includes("#tool:brainConsult") ||
-    existingNormalized.includes("Copilot instructions (WhytCard Brain)")
-  ) {
-    return { content: existing, changed: false };
-  }
-
-  const trimmed = existingNormalized.trimEnd();
-  const separator = trimmed.length > 0 ? "\n\n" : "";
-  const nextNormalized = trimmed + separator + brainBlockNormalized.trim() + "\n";
-  const next = denormalizeEol(nextNormalized);
-  return { content: next, changed: next !== existing };
+function writeFile(filePath, content) {
+  fs.writeFileSync(filePath, content, "utf8");
+  console.log(`  ✓ Written: ${filePath}`);
 }
+
+function main() {
+  const projectRoot = path.resolve(__dirname, "..");
+
+  console.log("Regenerating Brain instruction files...\n");
+
+  // 1. Windsurf rules
+  const windsurfDir = path.join(projectRoot, ".windsurf", "rules");
+  ensureDir(windsurfDir);
+  writeFile(path.join(windsurfDir, "brain.md"), buildWindsurfRulesContent());
+
+  // 2. Cursor rules (new MDC format)
+  const cursorDir = path.join(projectRoot, ".cursor", "rules");
+  ensureDir(cursorDir);
+  writeFile(path.join(cursorDir, "brain.mdc"), buildCursorRulesContent());
+
+  // 3. GitHub Copilot instructions
+  const githubDir = path.join(projectRoot, ".github");
+  ensureDir(githubDir);
+  writeFile(path.join(githubDir, "copilot-instructions.md"), buildCopilotInstructionsContent());
+
+  console.log("\n✓ All instruction files regenerated!");
+  console.log("\nFiles updated:");
+  console.log("  - .windsurf/rules/brain.md");
+  console.log("  - .cursor/rules/brain.mdc");
+  console.log("  - .github/copilot-instructions.md");
+}
+
+main();

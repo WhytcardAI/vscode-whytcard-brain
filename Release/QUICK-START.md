@@ -1,12 +1,12 @@
-# ⚡ Installation Rapide - WhytCard Brain
+# Quick Start - WhytCard Brain
 
-## Prérequis
+## Prerequisites
 
-- **Node.js 18+** : [nodejs.org](https://nodejs.org/)
+- **Node.js 18+**: [nodejs.org](https://nodejs.org/)
 
 ## Windows
 
-Double-cliquez sur `install-windows.bat`
+Double-click `install-windows.bat`
 
 ## Mac / Linux
 
@@ -16,17 +16,17 @@ chmod +x install-mac-linux.sh && ./install-mac-linux.sh
 
 ---
 
-## Après l'installation
+## After Installation
 
-### 1. Redémarrez votre éditeur
+### 1. Restart your editor
 
-### 2. Ouvrez un projet (workspace)
+### 2. Open a project (workspace)
 
-### 3. Vérifiez l'installation
+### 3. Verify installation
 
 `Ctrl+Shift+P` → `Brain: Show Installed Rules`
 
-Vous devriez voir:
+You should see:
 
 ```
 ✅ VS Code/Copilot: .github/copilot-instructions.md
@@ -34,18 +34,18 @@ Vous devriez voir:
 ✅ Windsurf: .windsurf/rules/brain.md
 ```
 
-### 4. Utilisez normalement votre IA
+### 4. Use your AI normally
 
-Demandez simplement:
+Simply ask:
 
 ```
-"Comment faire X avec React?"
+"How do I do X with React?"
 ```
 
-L'IA consultera automatiquement Brain avant de répondre !
+The AI will automatically consult Brain before responding!
 
 ---
 
-## Problèmes ?
+## Issues?
 
-Voir `TROUBLESHOOTING.md` ou `README.md`
+See `TROUBLESHOOTING.md` or `README.md`

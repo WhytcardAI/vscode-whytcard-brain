@@ -62,33 +62,36 @@ function writeJson(filePath, obj) {
 function defaultDbPath(editor) {
   const home = os.homedir();
   const platform = process.platform;
-  const appData =
-    process.env.APPDATA || path.join(home, "AppData", "Roaming");
+  const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
 
   if (platform === "win32") {
-    const base =
-      editor === "windsurf" ? "Windsurf - Next"
-      : editor === "cursor" ? "Cursor"
-      : "Code";
-    return path.join(
-      appData,
-      base,
-      "User",
-      "globalStorage",
-      "whytcard.whytcard-brain",
-      "brain.db",
-    );
+    let base = editor === "windsurf" ? "Windsurf - Next" : editor === "cursor" ? "Cursor" : "Code";
+    if (editor === "windsurf") {
+      const nextDir = path.join(appData, "Windsurf - Next");
+      const stableDir = path.join(appData, "Windsurf");
+      base = fs.existsSync(nextDir)
+        ? "Windsurf - Next"
+        : fs.existsSync(stableDir)
+          ? "Windsurf"
+          : "Windsurf - Next";
+    }
+    return path.join(appData, base, "User", "globalStorage", "whytcard.whytcard-brain", "brain.db");
   }
 
   if (platform === "darwin") {
-    const base =
-      editor === "windsurf" ? "Windsurf - Next"
-      : editor === "cursor" ? "Cursor"
-      : "Code";
+    const appSupport = path.join(home, "Library", "Application Support");
+    let base = editor === "windsurf" ? "Windsurf - Next" : editor === "cursor" ? "Cursor" : "Code";
+    if (editor === "windsurf") {
+      const nextDir = path.join(appSupport, "Windsurf - Next");
+      const stableDir = path.join(appSupport, "Windsurf");
+      base = fs.existsSync(nextDir)
+        ? "Windsurf - Next"
+        : fs.existsSync(stableDir)
+          ? "Windsurf"
+          : "Windsurf - Next";
+    }
     return path.join(
-      home,
-      "Library",
-      "Application Support",
+      appSupport,
       base,
       "User",
       "globalStorage",
@@ -98,13 +101,19 @@ function defaultDbPath(editor) {
   }
 
   // linux
-  const base =
-    editor === "windsurf" ? "Windsurf - Next"
-    : editor === "cursor" ? "Cursor"
-    : "Code";
+  const configRoot = path.join(home, ".config");
+  let base = editor === "windsurf" ? "Windsurf - Next" : editor === "cursor" ? "Cursor" : "Code";
+  if (editor === "windsurf") {
+    const nextDir = path.join(configRoot, "Windsurf - Next");
+    const stableDir = path.join(configRoot, "Windsurf");
+    base = fs.existsSync(nextDir)
+      ? "Windsurf - Next"
+      : fs.existsSync(stableDir)
+        ? "Windsurf"
+        : "Windsurf - Next";
+  }
   return path.join(
-    home,
-    ".config",
+    configRoot,
     base,
     "User",
     "globalStorage",
@@ -125,11 +134,13 @@ function detectCursorConfigPath() {
 
 function detectWindsurfConfigPath() {
   const home = os.homedir();
-  const primary = path.join(home, ".codeium", "windsurf-next", "mcp_config.json");
-  const fallback = path.join(home, ".codeium", "windsurf", "mcp_config.json");
-  if (fs.existsSync(primary)) return primary;
-  if (fs.existsSync(fallback)) return fallback;
-  return primary;
+  const codeium = path.join(home, ".codeium", "mcp_config.json");
+  const windsurfNext = path.join(home, ".codeium", "windsurf-next", "mcp_config.json");
+  const windsurf = path.join(home, ".codeium", "windsurf", "mcp_config.json");
+  if (fs.existsSync(codeium)) return codeium;
+  if (fs.existsSync(windsurfNext)) return windsurfNext;
+  if (fs.existsSync(windsurf)) return windsurf;
+  return codeium;
 }
 
 function resolveInstalledCursorExtensionServerPath() {
@@ -139,14 +150,12 @@ function resolveInstalledCursorExtensionServerPath() {
   const parsed = readJson(extensionsJson);
   if (!Array.isArray(parsed)) return null;
 
-  const entry = parsed.find(
-    (e) => e?.identifier?.id === "whytcard.whytcard-brain",
-  );
+  const entry = parsed.find((e) => e?.identifier?.id === "whytcard.whytcard-brain");
   const fsPath =
     (typeof entry?.location?.fsPath === "string" && entry.location.fsPath) ||
-    (typeof entry?.relativeLocation === "string" ?
-      path.join(extensionsDir, entry.relativeLocation)
-    : null);
+    (typeof entry?.relativeLocation === "string"
+      ? path.join(extensionsDir, entry.relativeLocation)
+      : null);
   if (!fsPath) return null;
 
   const serverPath = path.join(fsPath, "dist", "mcp-server.cjs");
@@ -173,14 +182,18 @@ async function main() {
   const strict = toBool(args.strict, true);
 
   const configPath =
-    typeof args.config === "string" ? args.config
-    : editor === "cursor" ? detectCursorConfigPath()
-    : detectWindsurfConfigPath();
+    typeof args.config === "string"
+      ? args.config
+      : editor === "cursor"
+        ? detectCursorConfigPath()
+        : detectWindsurfConfigPath();
 
   const serverPath =
-    typeof args.server === "string" ? args.server
-    : editor === "cursor" ? resolveInstalledCursorExtensionServerPath() || resolveRepoServerPath()
-    : resolveRepoServerPath();
+    typeof args.server === "string"
+      ? args.server
+      : editor === "cursor"
+        ? resolveInstalledCursorExtensionServerPath() || resolveRepoServerPath()
+        : resolveRepoServerPath();
 
   if (!serverPath) {
     console.error(
@@ -238,5 +251,3 @@ main().catch((e) => {
   console.error("❌ Fatal:", e);
   process.exit(1);
 });
-
-

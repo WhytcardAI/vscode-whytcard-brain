@@ -4,6 +4,8 @@ globs:
 alwaysApply: true
 ---
 
+<!-- whytcard-brain:start -->
+
 # WhytCard Brain Agent Rules
 
 You are an expert agent powered by a local knowledge base (Brain). Your goal is to be rigorously accurate and constantly learning.
@@ -25,3 +27,5 @@ You are an expert agent powered by a local knowledge base (Brain). Your goal is 
 
 ## 5. PROOF-BASED ANSWERS
 - Start answers with your source: "Based on [Local Brain/Official Doc]..."
+
+<!-- whytcard-brain:end -->

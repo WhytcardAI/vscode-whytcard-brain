@@ -2,7 +2,7 @@
 
 All notable changes to WhytCard Brain will be documented in this file.
 
-## [1.1.2] - 2024-12-23
+## [1.1.2] - 2024-12-25
 
 ### Added
 
@@ -23,18 +23,23 @@ All notable changes to WhytCard Brain will be documented in this file.
 - **ESLint + Prettier** - Added linting and formatting configuration
 - **SECURITY.md** - Security policy documentation
 - **Dependabot** - Automated dependency updates
+- **Release folder** - Complete standalone installation package with scripts
 
 ### Changed
 
 - Improved MCP server strict mode with configurable environment variables
 - Enhanced CI pipeline with multi-OS matrix (Ubuntu + Windows) and VSIX artifact upload
 - Optimized `.vscodeignore` to exclude dev config files from VSIX
+- **MCP config path** - Windsurf now uses `~/.codeium/mcp_config.json` (official location)
+- **Idempotent rule updates** - Rules files update without duplication on repeated activations
 
 ### Fixed
 
 - TypeScript TS2589 error in MCP server (ZodRawShape types)
 - MCP config paths for Windows environments
 - 25 ESLint errors (unused imports, empty blocks, case declarations)
+- Duplicated YAML frontmatter in Windsurf/Cursor rules files
+- Brain DB path resolution for Windsurf - Next vs Windsurf directories
 
 ## [1.1.0] - 2024-12-19
 

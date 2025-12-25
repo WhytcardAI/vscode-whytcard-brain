@@ -62,6 +62,7 @@ function resolveDbPathFromMcpConfig(): string | null {
     path.join(home, ".cursor", "mcp.json"),
     path.join(home, ".cursor", "mcp_config.json"),
     // Windsurf
+    path.join(home, ".codeium", "mcp_config.json"),
     path.join(home, ".codeium", "windsurf-next", "mcp_config.json"),
     path.join(home, ".codeium", "windsurf", "mcp_config.json"),
   ];
@@ -693,11 +694,13 @@ async function ensureCursorRulesForFolder(folder: vscode.WorkspaceFolder): Promi
   const newFormatExists = await uriExists(brainRulesUri);
 
   if (newFormatExists) {
-    // Check if needs update
     const current = await readTextFile(brainRulesUri);
-    if (current.includes("WhytCard Brain") || current.includes("brainConsult")) {
-      return; // Already has Brain rules
+    const merged = mergeBrainInstructionsBlock(current, brainContent);
+    if (merged.changed) {
+      await vscode.workspace.fs.writeFile(brainRulesUri, Buffer.from(merged.content, "utf8"));
+      console.log("WhytCard Brain: updated .cursor/rules/brain.mdc for", folder.name);
     }
+    return;
   }
 
   // Create directory and file

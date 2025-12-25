@@ -1,45 +1,45 @@
-# 🔧 Dépannage - WhytCard Brain
+# Troubleshooting - WhytCard Brain
 
-## Problèmes courants
+## Common Issues
 
-### ❌ L'extension ne s'installe pas
+### Extension won't install
 
-**Vérifier la version de l'éditeur:**
+**Check editor version:**
 
 ```bash
 code --version    # VS Code >= 1.89.0
 cursor --version  # Cursor >= 0.45
 ```
 
-**Solution:** Mettre à jour votre éditeur.
+**Solution:** Update your editor.
 
 ---
 
-### ❌ MCP ne fonctionne pas (Cursor/Windsurf)
+### MCP not working (Cursor/Windsurf)
 
-**1. Vérifier l'emplacement du fichier config:**
+**1. Verify config file location:**
 
-| Éditeur  | Windows                                           | Mac/Linux                             |
-| -------- | ------------------------------------------------- | ------------------------------------- |
-| Cursor   | `%USERPROFILE%\.cursor\mcp.json`                  | `~/.cursor/mcp.json`                  |
-| Windsurf | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` |
+| Editor   | Windows                                  | Mac/Linux                    |
+| -------- | ---------------------------------------- | ---------------------------- |
+| Cursor   | `%USERPROFILE%\.cursor\mcp.json`         | `~/.cursor/mcp.json`         |
+| Windsurf | `%USERPROFILE%\.codeium\mcp_config.json` | `~/.codeium/mcp_config.json` |
 
-**2. Vérifier que Node.js est installé:**
+**2. Verify Node.js is installed:**
 
 ```bash
-node --version  # Doit afficher v18+
+node --version  # Should display v18+
 npx --version
 ```
 
-**3. Tester le serveur MCP manuellement:**
+**3. Test MCP server manually:**
 
 ```bash
-npx -y @anthropic-ai/mcp-server-whytcard-brain@latest
+npx -y whytcard-brain-mcp
 ```
 
-**4. Si npx ne fonctionne pas, utiliser le chemin absolu:**
+**4. If npx doesn't work, use absolute path:**
 
-Éditer `mcp_config.json`:
+Edit `mcp_config.json`:
 
 ```json
 {
@@ -49,7 +49,7 @@ npx -y @anthropic-ai/mcp-server-whytcard-brain@latest
       "args": [
         "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
         "-y",
-        "@anthropic-ai/mcp-server-whytcard-brain@latest"
+        "whytcard-brain-mcp"
       ]
     }
   }
@@ -58,19 +58,19 @@ npx -y @anthropic-ai/mcp-server-whytcard-brain@latest
 
 ---
 
-### ❌ Les règles ne s'appliquent pas
+### Rules not applying
 
-**1. Ouvrir un workspace (pas un fichier seul)**
+**1. Open a workspace (not a single file)**
 
-L'extension ne crée les règles que dans un workspace ouvert.
+The extension only creates rules in an open workspace.
 
-**2. Vérifier les fichiers créés:**
+**2. Verify files are created:**
 
 - VS Code: `.github/copilot-instructions.md`
 - Cursor: `.cursor/rules/brain.mdc`
 - Windsurf: `.windsurf/rules/brain.md`
 
-**3. Forcer la recréation:**
+**3. Force recreation:**
 
 ```
 Ctrl+Shift+P → "Developer: Reload Window"
@@ -78,19 +78,19 @@ Ctrl+Shift+P → "Developer: Reload Window"
 
 ---
 
-### ❌ L'IA n'utilise pas Brain
+### AI not using Brain
 
-**1. Vérifier que les outils sont disponibles:**
+**1. Verify tools are available:**
 
-Dans le chat, tapez: `@brain` ou mentionnez `brainConsult`
+In chat, type: `@brain` or mention `brainConsult`
 
-**2. Vérifier les settings:**
+**2. Check settings:**
 
 ```
-Settings → "whytcard-brain.strictMode" → "moderate" ou "strict"
+Settings → "whytcard-brain.strictMode" → "moderate" or "strict"
 ```
 
-**3. Vérifier les logs:**
+**3. Check logs:**
 
 ```
 Ctrl+Shift+U → Output → "WhytCard Brain"
@@ -98,70 +98,72 @@ Ctrl+Shift+U → Output → "WhytCard Brain"
 
 ---
 
-### ❌ Erreur "Cannot find module 'vscode'"
+### Error "Cannot find module 'vscode'"
 
-C'est normal si vous essayez de lancer le serveur MCP directement. Le serveur MCP utilise un fichier différent (`mcp-server.cjs`).
+This is normal if you're trying to run the MCP server directly. The MCP server uses a different file (`mcp-server.cjs`).
 
 ---
 
-### ❌ Base de données introuvable
+### Database not found
 
-**Chemin par défaut de brain.db:**
+**Default brain.db paths:**
 
-| Éditeur  | Windows                                                                  |
-| -------- | ------------------------------------------------------------------------ |
-| VS Code  | `%APPDATA%\Code\User\globalStorage\whytcard.whytcard-brain\brain.db`     |
-| Cursor   | `%APPDATA%\Cursor\User\globalStorage\whytcard.whytcard-brain\brain.db`   |
-| Windsurf | `%APPDATA%\Windsurf\User\globalStorage\whytcard.whytcard-brain\brain.db` |
+| Editor   | Windows                                                                  | Mac/Linux                                                  |
+| -------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| VS Code  | `%APPDATA%\Code\User\globalStorage\whytcard.whytcard-brain\brain.db`     | `~/.vscode/globalStorage/whytcard.whytcard-brain/brain.db` |
+| Cursor   | `%APPDATA%\Cursor\User\globalStorage\whytcard.whytcard-brain\brain.db`   | `~/Library/Application Support/Cursor/.../brain.db`        |
+| Windsurf | `%APPDATA%\Windsurf\User\globalStorage\whytcard.whytcard-brain\brain.db` | `~/Library/Application Support/Windsurf/.../brain.db`      |
 
-**Forcer un chemin personnalisé:**
+**Force a custom path:**
 
-Dans `mcp_config.json`:
+In `mcp_config.json`:
 
 ```json
 "env": {
-  "BRAIN_DB_PATH": "C:/chemin/vers/brain.db"
+  "BRAIN_DB_PATH": "C:/path/to/brain.db"
 }
 ```
 
 ---
 
-## Logs et Debug
+## Logs and Debug
 
-### Activer les logs détaillés
+### Enable detailed logs
 
-1. Ouvrir Settings
-2. Chercher "whytcard-brain"
-3. Activer le mode debug si disponible
+1. Open Settings
+2. Search for "whytcard-brain"
+3. Enable debug mode if available
 
-### Voir les logs MCP
+### View MCP logs
 
 ```bash
-# Lancer le serveur en mode debug
-BRAIN_DEBUG=1 npx -y @anthropic-ai/mcp-server-whytcard-brain@latest
+# Run server in debug mode
+BRAIN_DEBUG=1 npx -y whytcard-brain-mcp
 ```
 
 ---
 
-## Réinitialisation complète
+## Complete Reset
 
 ```bash
-# 1. Désinstaller l'extension
+# 1. Uninstall extension
 code --uninstall-extension whytcard.whytcard-brain
 
-# 2. Supprimer les fichiers de config
+# 2. Remove config files
 rm ~/.cursor/mcp.json
-rm ~/.codeium/windsurf/mcp_config.json
+rm ~/.codeium/mcp_config.json
 
-# 3. Réinstaller
-./install-mac-linux.sh  # ou install-windows.bat
+# 3. Reinstall
+./install-mac-linux.sh  # or install-windows.bat
 ```
 
 ---
 
 ## Support
 
-Si le problème persiste:
+If the issue persists:
 
-1. Ouvrir une issue sur GitHub avec les logs
-2. Inclure: version éditeur, OS, message d'erreur complet
+1. Open a GitHub issue with logs
+2. Include: editor version, OS, complete error message
+
+**GitHub Issues:** [github.com/WhytcardAI/vscode-whytcard-brain/issues](https://github.com/WhytcardAI/vscode-whytcard-brain/issues)

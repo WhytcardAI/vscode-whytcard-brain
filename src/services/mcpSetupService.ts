@@ -52,19 +52,22 @@ export class McpSetupService {
         // Windsurf Next ou stable
         const windsurfNextPath = path.join(homeDir, ".codeium", "windsurf-next", "mcp_config.json");
         const windsurfPath = path.join(homeDir, ".codeium", "windsurf", "mcp_config.json");
+        const codeiumPath = path.join(homeDir, ".codeium", "mcp_config.json");
 
-        if (fs.existsSync(windsurfNextPath)) {
+        if (fs.existsSync(codeiumPath)) {
+          return codeiumPath;
+        } else if (fs.existsSync(windsurfNextPath)) {
           return windsurfNextPath;
         } else if (fs.existsSync(windsurfPath)) {
           return windsurfPath;
         }
 
         // Créer le dossier si nécessaire
-        const windsurfDir = path.dirname(windsurfNextPath);
-        if (!fs.existsSync(windsurfDir)) {
-          fs.mkdirSync(windsurfDir, { recursive: true });
+        const codeiumDir = path.dirname(codeiumPath);
+        if (!fs.existsSync(codeiumDir)) {
+          fs.mkdirSync(codeiumDir, { recursive: true });
         }
-        return windsurfNextPath;
+        return codeiumPath;
       }
 
       case "cursor": {
@@ -98,22 +101,40 @@ export class McpSetupService {
    */
   private getDbPath(): string {
     const env = this.detectEnvironment();
-    const appDataDir = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+    const home = os.homedir();
+    const platform = process.platform;
 
-    let baseDir: string;
-    switch (env) {
-      case "windsurf":
-        baseDir = path.join(appDataDir, "Windsurf - Next");
-        break;
-      case "cursor":
-        baseDir = path.join(appDataDir, "Cursor");
-        break;
-      case "vscode":
-      default:
-        baseDir = path.join(appDataDir, "Code");
-        break;
+    const baseCandidates =
+      env === "windsurf"
+        ? ["Windsurf - Next", "Windsurf"]
+        : env === "cursor"
+          ? ["Cursor"]
+          : ["Code"];
+
+    const pickBaseDir = (root: string): string => {
+      for (const name of baseCandidates) {
+        const candidate = path.join(root, name);
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+      return path.join(root, baseCandidates[0]);
+    };
+
+    if (platform === "win32") {
+      const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+      const baseDir = pickBaseDir(appData);
+      return path.join(baseDir, "User", "globalStorage", "whytcard.whytcard-brain", "brain.db");
     }
 
+    if (platform === "darwin") {
+      const appSupport = path.join(home, "Library", "Application Support");
+      const baseDir = pickBaseDir(appSupport);
+      return path.join(baseDir, "User", "globalStorage", "whytcard.whytcard-brain", "brain.db");
+    }
+
+    const configDir = path.join(home, ".config");
+    const baseDir = pickBaseDir(configDir);
     return path.join(baseDir, "User", "globalStorage", "whytcard.whytcard-brain", "brain.db");
   }
 

@@ -207,7 +207,10 @@ globs:
 alwaysApply: true
 ---
 
-${content}`;
+<!-- whytcard-brain:start -->
+
+${content}
+<!-- whytcard-brain:end -->`;
 }
 
 /**
@@ -267,49 +270,90 @@ export function mergeBrainInstructionsBlock(
   const start = "<!-- whytcard-brain:start -->";
   const end = "<!-- whytcard-brain:end -->";
 
-  const startIdx = existing.indexOf(start);
-  const endIdx = existing.indexOf(end);
+  const eol = existing.includes("\r\n") ? "\r\n" : "\n";
+  const normalizeEol = (value: string) => value.replace(/\r\n/g, "\n");
+  const denormalizeEol = (value: string) => (eol === "\r\n" ? value.replace(/\n/g, "\r\n") : value);
+
+  const existingNormalized = normalizeEol(existing);
+  const brainBlockNormalized = normalizeEol(brainBlock);
+
+  const isYamlFrontmatterBlock = (value: string) => value.startsWith("---\n");
+
+  if (isYamlFrontmatterBlock(brainBlockNormalized.trimStart())) {
+    const lastEndIdx = existingNormalized.lastIndexOf(end);
+    const tailRaw = lastEndIdx !== -1 ? existingNormalized.substring(lastEndIdx + end.length) : "";
+    const tail = tailRaw.trimStart();
+
+    const nextNormalized =
+      brainBlockNormalized.trimEnd() +
+      (tail.trim().length > 0 ? "\n\n" + tail.trimEnd() : "") +
+      "\n";
+    const next = denormalizeEol(nextNormalized);
+    return { content: next, changed: next !== existing };
+  }
+
+  const stripDuplicateBrainBlocks = (value: string): string => {
+    let out = value;
+    while (true) {
+      const s = out.indexOf(start);
+      if (s === -1) break;
+      const e = out.indexOf(end, s + start.length);
+      if (e === -1) break;
+
+      const before = out.substring(0, s).trimEnd();
+      const after = out.substring(e + end.length).trimStart();
+      out = (before ? before + "\n\n" : "") + after;
+    }
+    return out;
+  };
+
+  const startIdx = existingNormalized.indexOf(start);
+  const endIdx = startIdx !== -1 ? existingNormalized.indexOf(end, startIdx + start.length) : -1;
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const before = existing.substring(0, startIdx).trimEnd();
-    const after = existing.substring(endIdx + end.length).trimStart();
-    const next =
+    const before = existingNormalized.substring(0, startIdx).trimEnd();
+    const afterRaw = existingNormalized.substring(endIdx + end.length);
+    const after = stripDuplicateBrainBlocks(afterRaw).trimStart();
+    const nextNormalized =
       (before ? before + "\n\n" : "") +
-      brainBlock.trim() +
+      brainBlockNormalized.trim() +
       (after ? "\n\n" + after : "") +
-      (existing.endsWith("\n") ? "\n" : "");
+      (existingNormalized.endsWith("\n") ? "\n" : "");
+    const next = denormalizeEol(nextNormalized);
     return { content: next, changed: next !== existing };
   }
 
   const legacyHeading = "# Copilot instructions (WhytCard Brain)";
   const legacyTail = "- Do not ask the user to call tools; call them yourself.";
-  const legacyStartIdx = existing.indexOf(legacyHeading);
-  const legacyTailIdx = existing.indexOf(legacyTail);
+  const legacyStartIdx = existingNormalized.indexOf(legacyHeading);
+  const legacyTailIdx = existingNormalized.indexOf(legacyTail);
   if (legacyStartIdx !== -1 && legacyTailIdx !== -1 && legacyTailIdx > legacyStartIdx) {
     const legacyEndLineIdx = (() => {
       const tailEnd = legacyTailIdx + legacyTail.length;
-      const nl = existing.indexOf("\n", tailEnd);
+      const nl = existingNormalized.indexOf("\n", tailEnd);
       return nl === -1 ? tailEnd : nl + 1;
     })();
 
-    const before = existing.substring(0, legacyStartIdx).trimEnd();
-    const after = existing.substring(legacyEndLineIdx).trimStart();
-    const next =
+    const before = existingNormalized.substring(0, legacyStartIdx).trimEnd();
+    const after = existingNormalized.substring(legacyEndLineIdx).trimStart();
+    const nextNormalized =
       (before ? before + "\n\n" : "") +
-      brainBlock.trim() +
+      brainBlockNormalized.trim() +
       (after ? "\n\n" + after : "") +
-      (existing.endsWith("\n") ? "\n" : "");
+      (existingNormalized.endsWith("\n") ? "\n" : "");
+    const next = denormalizeEol(nextNormalized);
     return { content: next, changed: next !== existing };
   }
 
   if (
-    existing.includes("#tool:brainConsult") ||
-    existing.includes("Copilot instructions (WhytCard Brain)")
+    existingNormalized.includes("#tool:brainConsult") ||
+    existingNormalized.includes("Copilot instructions (WhytCard Brain)")
   ) {
     return { content: existing, changed: false };
   }
 
-  const trimmed = existing.trimEnd();
+  const trimmed = existingNormalized.trimEnd();
   const separator = trimmed.length > 0 ? "\n\n" : "";
-  const next = trimmed + separator + brainBlock.trim() + "\n";
+  const nextNormalized = trimmed + separator + brainBlockNormalized.trim() + "\n";
+  const next = denormalizeEol(nextNormalized);
   return { content: next, changed: next !== existing };
 }

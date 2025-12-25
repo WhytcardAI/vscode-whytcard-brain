@@ -8,11 +8,19 @@
         "BRAIN_REQUIRE_CONSULT": "1",
         "BRAIN_CONSULT_TTL_MS": "1200000",
         "BRAIN_STRICT_MODE": "0",
-        "BRAIN_STRICT_REQUIRE_SOURCES": "0",
-        "BRAIN_REQUIRE_CONSULT_EVERY_TOOL": "0"
+        "BRAIN_STRICT_REQUIRE_SOURCES": "0"
       },
-      "disabled": false,
-      "autoApprove": ["brainConsult", "brainSearch", "brainTemplateSearch"]
+      "alwaysAllow": [
+        "brainConsult",
+        "brainSearch",
+        "brainSave",
+        "brainBug",
+        "brainSession",
+        "brainValidate",
+        "brainTemplateSave",
+        "brainTemplateSearch",
+        "brainTemplateApply"
+      ]
     }
   }
 }

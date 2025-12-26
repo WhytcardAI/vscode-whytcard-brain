@@ -271,7 +271,6 @@ ${content}
 export function buildWindsurfRulesContent(config: BrainInstructionConfig = DEFAULT_CONFIG): string {
   const content = buildInstructionsFromConfig(config, "windsurf");
   return `---
-trigger: always_on
 ---
 
 <!-- whytcard-brain:start -->

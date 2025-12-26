@@ -1,5 +1,4 @@
 ---
-trigger: always_on
 ---
 
 <!-- whytcard-brain:start -->

@@ -21,10 +21,10 @@ import {
   disposeBrainService,
   getBrainService,
   setStoragePath,
-  normalizeForSearch,
   type Doc,
 } from "./services/brainService";
 import { registerBrainTools } from "./tools/brainTools";
+import { buildDeduplicateDocsPlan } from "./utils/deduplicateDocs";
 import {
   buildCopilotInstructionsContent,
   buildCursorRulesContent,
@@ -40,6 +40,83 @@ let statusBarItem: vscode.StatusBarItem;
 let dbWatcher: fs.FSWatcher | undefined;
 let refreshInterval: NodeJS.Timeout | undefined;
 let mcpSetupService: McpSetupService;
+
+let rulesWatchers: vscode.FileSystemWatcher[] = [];
+
+let autoSetupRunning = false;
+let autoSetupPending = false;
+let autoSetupDebounceTimer: NodeJS.Timeout | undefined;
+
+function disposeRulesWatchers(): void {
+  for (const w of rulesWatchers) {
+    try {
+      w.dispose();
+    } catch {
+      // ignore
+    }
+  }
+  rulesWatchers = [];
+}
+
+function scheduleAutoSetupAllEditorInstructions(): void {
+  if (autoSetupDebounceTimer) {
+    clearTimeout(autoSetupDebounceTimer);
+  }
+
+  autoSetupDebounceTimer = setTimeout(() => {
+    runAutoSetupAllEditorInstructions();
+  }, 300);
+}
+
+async function runAutoSetupAllEditorInstructions(): Promise<void> {
+  if (autoSetupRunning) {
+    autoSetupPending = true;
+    return;
+  }
+
+  autoSetupRunning = true;
+  try {
+    await autoSetupAllEditorInstructions();
+  } catch (e) {
+    console.warn("WhytCard Brain: auto-setup editor instructions failed:", e);
+  } finally {
+    autoSetupRunning = false;
+    if (autoSetupPending) {
+      autoSetupPending = false;
+      scheduleAutoSetupAllEditorInstructions();
+    }
+  }
+}
+
+function setupRulesWatchers(context: vscode.ExtensionContext): void {
+  disposeRulesWatchers();
+
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length === 0) {
+    return;
+  }
+
+  for (const folder of folders) {
+    const windsurfPattern = new vscode.RelativePattern(folder, ".windsurf/rules/brain.md");
+    const cursorPattern = new vscode.RelativePattern(folder, ".cursor/rules/brain.mdc");
+    const copilotPattern = new vscode.RelativePattern(folder, ".github/copilot-instructions.md");
+
+    const watchers = [
+      vscode.workspace.createFileSystemWatcher(windsurfPattern),
+      vscode.workspace.createFileSystemWatcher(cursorPattern),
+      vscode.workspace.createFileSystemWatcher(copilotPattern),
+    ];
+
+    for (const watcher of watchers) {
+      watcher.onDidCreate(() => scheduleAutoSetupAllEditorInstructions());
+      watcher.onDidChange(() => scheduleAutoSetupAllEditorInstructions());
+      watcher.onDidDelete(() => scheduleAutoSetupAllEditorInstructions());
+
+      rulesWatchers.push(watcher);
+      context.subscriptions.push(watcher);
+    }
+  }
+}
 
 function tryReadJsonFile<T = unknown>(filePath: string): T | null {
   try {
@@ -154,15 +231,15 @@ export async function activate(context: vscode.ExtensionContext) {
   statusBarItem.show();
 
   // Auto-setup instructions for all editors
-  autoSetupAllEditorInstructions().catch((e) => {
-    console.warn("WhytCard Brain: auto-setup editor instructions failed:", e);
-  });
+  scheduleAutoSetupAllEditorInstructions();
+
+  // Auto-heal rules if they are edited/deleted
+  setupRulesWatchers(context);
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      autoSetupAllEditorInstructions().catch((e) => {
-        console.warn("WhytCard Brain: auto-setup editor instructions failed:", e);
-      });
+      setupRulesWatchers(context);
+      scheduleAutoSetupAllEditorInstructions();
     }),
 
     vscode.commands.registerCommand("whytcard-brain.deduplicateDocs", async () => {
@@ -172,69 +249,13 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      type DedupKey = string;
-      const makeKey = (d: Doc): DedupKey => {
-        const libraryKey = normalizeForSearch(d.library || "");
-        const topicKey = (d.topic || "").trim().toLowerCase();
-        const titleKey = (d.title || "").trim().toLowerCase();
-        const categoryKey = ((d.category || "documentation") as string).trim().toLowerCase();
-        return `${categoryKey}::${libraryKey}::${topicKey}::${titleKey}`;
-      };
-
-      const groups = new Map<DedupKey, Doc[]>();
-      for (const d of docs) {
-        const key = makeKey(d);
-        const arr = groups.get(key);
-        if (arr) {
-          arr.push(d);
-        } else {
-          groups.set(key, [d]);
-        }
-      }
-
-      const duplicates = [...groups.values()].filter((g) => g.length > 1);
-      if (duplicates.length === 0) {
+      const plan = buildDeduplicateDocsPlan(docs);
+      if (plan.stats.candidateGroups === 0) {
         vscode.window.showInformationMessage("Aucun doublon detecte.");
         return;
       }
 
-      const sortNewestFirst = (a: Doc, b: Doc) => {
-        const ta = a.created_at ? Date.parse(a.created_at) : Number.NaN;
-        const tb = b.created_at ? Date.parse(b.created_at) : Number.NaN;
-        if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) {
-          return tb - ta;
-        }
-        if (!Number.isNaN(ta) && Number.isNaN(tb)) return -1;
-        if (Number.isNaN(ta) && !Number.isNaN(tb)) return 1;
-        return (b.id || 0) - (a.id || 0);
-      };
-
-      let totalToDelete = 0;
-      const lines: string[] = [];
-      lines.push(`# Brain - Deduplicate Docs (dry-run)`);
-      lines.push("");
-      lines.push(`Doublons detectes: ${duplicates.length} groupe(s)`);
-      lines.push("");
-
-      for (const group of duplicates) {
-        const sorted = [...group].sort(sortNewestFirst);
-        const keep = sorted[0];
-        const del = sorted.slice(1);
-        totalToDelete += del.length;
-
-        lines.push(
-          `## ${keep.library} / ${keep.topic} / ${keep.title} (${keep.category || "documentation"})`,
-        );
-        lines.push(`- Keep: id=${keep.id ?? "?"} created_at=${keep.created_at ?? "?"}`);
-        for (const d of del) {
-          lines.push(`- Delete: id=${d.id ?? "?"} created_at=${d.created_at ?? "?"}`);
-        }
-        lines.push("");
-      }
-
-      lines.push(`Total a supprimer: ${totalToDelete}`);
-
-      const report = lines.join("\n");
+      const report = plan.report;
       const reportDoc = await vscode.workspace.openTextDocument({
         language: "markdown",
         content: report,
@@ -243,7 +264,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
       // Show report in modal (copyable) as well
       const selection = await vscode.window.showWarningMessage(
-        `Doublons detectes: ${duplicates.length} groupe(s) - Suppression proposee: ${totalToDelete} doc(s).`,
+        `Groupes candidats: ${plan.stats.candidateGroups} - Suppression sure proposee: ${plan.stats.totalSafeDeletions} doc(s).`,
         { modal: true, detail: report },
         "Apply",
         "Cancel",
@@ -254,15 +275,9 @@ export async function activate(context: vscode.ExtensionContext) {
       }
 
       let deleted = 0;
-      for (const group of duplicates) {
-        const sorted = [...group].sort(sortNewestFirst);
-        const del = sorted.slice(1);
-        for (const d of del) {
-          if (typeof d.id === "number") {
-            const ok = service.deleteDoc(d.id);
-            if (ok) deleted += 1;
-          }
-        }
+      for (const id of plan.deleteIds) {
+        const ok = service.deleteDoc(id);
+        if (ok) deleted += 1;
       }
 
       refreshAll(true);
@@ -725,13 +740,9 @@ async function openFile(uri: vscode.Uri): Promise<void> {
  * Auto-setup instructions for ALL editors (VS Code/Copilot, Cursor, Windsurf)
  */
 async function autoSetupAllEditorInstructions(): Promise<void> {
-  const autoInstall = vscode.workspace
+  const autoInstallCopilot = vscode.workspace
     .getConfiguration()
     .get<boolean>("whytcard-brain.autoInstallCopilotInstructions", true);
-
-  if (!autoInstall) {
-    return;
-  }
 
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -740,7 +751,7 @@ async function autoSetupAllEditorInstructions(): Promise<void> {
 
   for (const folder of folders) {
     // VS Code / GitHub Copilot (.github/copilot-instructions.md)
-    if (isCopilotAvailable()) {
+    if (autoInstallCopilot && isCopilotAvailable()) {
       try {
         await ensureCopilotInstructionsForFolder(folder);
       } catch (err) {
@@ -768,7 +779,7 @@ async function autoSetupAllEditorInstructions(): Promise<void> {
     .getConfiguration()
     .get<boolean>("whytcard-brain.autoEnableCopilotInstructionFiles", true);
 
-  if (autoEnable && isCopilotAvailable()) {
+  if (autoInstallCopilot && autoEnable && isCopilotAvailable()) {
     for (const folder of folders) {
       try {
         await tryEnableCopilotInstructionFiles(folder);
@@ -907,6 +918,8 @@ export function deactivate() {
     dbWatcher.close();
     dbWatcher = undefined;
   }
+
+  disposeRulesWatchers();
 
   // Cleanup interval
   if (refreshInterval) {

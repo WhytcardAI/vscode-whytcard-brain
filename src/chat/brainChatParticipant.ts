@@ -49,7 +49,7 @@ export function registerBrainChatParticipant(_context: vscode.ExtensionContext):
       if (!result.metadata?.localFound) {
         followups.push({
           prompt: "Cherche sur le web et enregistre la doc",
-          label: "🌐 Chercher sur le web",
+          label: "Chercher sur le web",
         });
       }
 
@@ -187,29 +187,19 @@ function showNotFound(
   stream.markdown(`## ❌ Pas trouvé dans la base\n\n`);
   stream.markdown(`Recherche: **${query}**\n\n`);
 
-  stream.markdown(`### 🌐 Pour chercher sur le web:\n\n`);
-  stream.markdown(`Utilise ces outils MCP dans ta prochaine requête:\n\n`);
-
-  // Context7 pour les docs officielles
-  const ctx7Lib = getContext7Library(library || query);
-  if (ctx7Lib) {
-    stream.markdown(`**Documentation officielle** (Context7):\n`);
-    stream.markdown("```\n");
-    stream.markdown(`mcp_context7_get-library-docs\n`);
-    stream.markdown(`  context7CompatibleLibraryID: "${ctx7Lib}"\n`);
-    stream.markdown(`  topic: "${query}"\n`);
-    stream.markdown("```\n\n");
+  stream.markdown(`### Recherche web (docs officielles)\n\n`);
+  if (library) {
+    stream.markdown(`Librairie détectée: **${library}**\n\n`);
   }
 
-  // Tavily pour recherche web
-  stream.markdown(`**Recherche web** (Tavily):\n`);
-  stream.markdown("```\n");
-  stream.markdown(`mcp_tavily_tavily-search\n`);
-  stream.markdown(`  query: "${query}"\n`);
-  stream.markdown("```\n\n");
+  stream.markdown(
+    `Tu peux rechercher la documentation officielle (ex: Context7) ou faire une recherche web (ex: Tavily), puis enregistrer la source dans Brain (avec une URL).\n\n`,
+  );
 
   stream.markdown(`---\n`);
-  stream.markdown(`*💡 Quand tu trouves la doc, dis-moi et je l'enregistre automatiquement.*\n`);
+  stream.markdown(
+    `Quand tu as une URL officielle pertinente, demande-moi de l'enregistrer dans Brain.\n`,
+  );
 
   return {
     metadata: {
@@ -249,32 +239,4 @@ function detectLibrary(query: string): string | undefined {
   }
 
   return undefined;
-}
-
-/**
- * Obtenir l'ID Context7 pour une librairie
- */
-function getContext7Library(query: string): string | null {
-  const q = query.toLowerCase();
-
-  if (q.includes("next") || q.includes("nextjs")) {
-    return "/vercel/next.js";
-  }
-  if (q.includes("react")) {
-    return "/facebook/react";
-  }
-  if (q.includes("tailwind")) {
-    return "/tailwindlabs/tailwindcss";
-  }
-  if (q.includes("typescript")) {
-    return "/microsoft/TypeScript";
-  }
-  if (q.includes("zod")) {
-    return "/colinhacks/zod";
-  }
-  if (q.includes("prisma")) {
-    return "/prisma/prisma";
-  }
-
-  return null;
 }

@@ -21,6 +21,7 @@ import {
   disposeBrainService,
   getBrainService,
   setStoragePath,
+  normalizeForSearch,
   type Doc,
 } from "./services/brainService";
 import { registerBrainTools } from "./tools/brainTools";
@@ -68,10 +69,11 @@ function resolveDbPathFromMcpConfig(): string | null {
   ];
 
   for (const configPath of candidates) {
-    const config = tryReadJsonFile<any>(configPath);
+    const config = tryReadJsonFile<Record<string, unknown>>(configPath);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const servers = (config as any)?.mcpServers;
     const dbPath =
-      config?.mcpServers?.["whytcard-brain"]?.env?.BRAIN_DB_PATH ??
-      config?.mcpServers?.whytcardBrain?.env?.BRAIN_DB_PATH;
+      servers?.["whytcard-brain"]?.env?.BRAIN_DB_PATH ?? servers?.whytcardBrain?.env?.BRAIN_DB_PATH;
     if (typeof dbPath === "string" && dbPath.trim().endsWith(".db")) {
       return dbPath.trim();
     }
@@ -161,6 +163,110 @@ export async function activate(context: vscode.ExtensionContext) {
       autoSetupAllEditorInstructions().catch((e) => {
         console.warn("WhytCard Brain: auto-setup editor instructions failed:", e);
       });
+    }),
+
+    vscode.commands.registerCommand("whytcard-brain.deduplicateDocs", async () => {
+      const docs = service.getAllDocs();
+      if (docs.length === 0) {
+        vscode.window.showInformationMessage("Aucun document dans la base.");
+        return;
+      }
+
+      type DedupKey = string;
+      const makeKey = (d: Doc): DedupKey => {
+        const libraryKey = normalizeForSearch(d.library || "");
+        const topicKey = (d.topic || "").trim().toLowerCase();
+        const titleKey = (d.title || "").trim().toLowerCase();
+        const categoryKey = ((d.category || "documentation") as string).trim().toLowerCase();
+        return `${categoryKey}::${libraryKey}::${topicKey}::${titleKey}`;
+      };
+
+      const groups = new Map<DedupKey, Doc[]>();
+      for (const d of docs) {
+        const key = makeKey(d);
+        const arr = groups.get(key);
+        if (arr) {
+          arr.push(d);
+        } else {
+          groups.set(key, [d]);
+        }
+      }
+
+      const duplicates = [...groups.values()].filter((g) => g.length > 1);
+      if (duplicates.length === 0) {
+        vscode.window.showInformationMessage("Aucun doublon detecte.");
+        return;
+      }
+
+      const sortNewestFirst = (a: Doc, b: Doc) => {
+        const ta = a.created_at ? Date.parse(a.created_at) : Number.NaN;
+        const tb = b.created_at ? Date.parse(b.created_at) : Number.NaN;
+        if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) {
+          return tb - ta;
+        }
+        if (!Number.isNaN(ta) && Number.isNaN(tb)) return -1;
+        if (Number.isNaN(ta) && !Number.isNaN(tb)) return 1;
+        return (b.id || 0) - (a.id || 0);
+      };
+
+      let totalToDelete = 0;
+      const lines: string[] = [];
+      lines.push(`# Brain - Deduplicate Docs (dry-run)`);
+      lines.push("");
+      lines.push(`Doublons detectes: ${duplicates.length} groupe(s)`);
+      lines.push("");
+
+      for (const group of duplicates) {
+        const sorted = [...group].sort(sortNewestFirst);
+        const keep = sorted[0];
+        const del = sorted.slice(1);
+        totalToDelete += del.length;
+
+        lines.push(
+          `## ${keep.library} / ${keep.topic} / ${keep.title} (${keep.category || "documentation"})`,
+        );
+        lines.push(`- Keep: id=${keep.id ?? "?"} created_at=${keep.created_at ?? "?"}`);
+        for (const d of del) {
+          lines.push(`- Delete: id=${d.id ?? "?"} created_at=${d.created_at ?? "?"}`);
+        }
+        lines.push("");
+      }
+
+      lines.push(`Total a supprimer: ${totalToDelete}`);
+
+      const report = lines.join("\n");
+      const reportDoc = await vscode.workspace.openTextDocument({
+        language: "markdown",
+        content: report,
+      });
+      await vscode.window.showTextDocument(reportDoc, { preview: false });
+
+      // Show report in modal (copyable) as well
+      const selection = await vscode.window.showWarningMessage(
+        `Doublons detectes: ${duplicates.length} groupe(s) - Suppression proposee: ${totalToDelete} doc(s).`,
+        { modal: true, detail: report },
+        "Apply",
+        "Cancel",
+      );
+
+      if (selection !== "Apply") {
+        return;
+      }
+
+      let deleted = 0;
+      for (const group of duplicates) {
+        const sorted = [...group].sort(sortNewestFirst);
+        const del = sorted.slice(1);
+        for (const d of del) {
+          if (typeof d.id === "number") {
+            const ok = service.deleteDoc(d.id);
+            if (ok) deleted += 1;
+          }
+        }
+      }
+
+      refreshAll(true);
+      vscode.window.showInformationMessage(`Dedup termine: ${deleted} doc(s) supprimee(s).`);
     }),
   );
 

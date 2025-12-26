@@ -492,11 +492,19 @@ export class BrainService {
    */
   public findDoc(library: string, topic: string, title: string): Doc | null {
     if (!this.ensureConnection()) return null;
-    return this.queryOne<Doc>("SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?", [
-      library,
-      topic,
-      title,
-    ]);
+    const normalized = normalizeForSearch(library);
+    return this.queryOne<Doc>(
+      `
+      SELECT * FROM docs
+      WHERE topic = ?
+        AND title = ?
+        AND (
+          library = ?
+          OR REPLACE(REPLACE(LOWER(library), '.', ''), ' ', '') = ?
+        )
+      `,
+      [topic, title, library, normalized],
+    );
   }
 
   /**

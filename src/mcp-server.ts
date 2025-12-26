@@ -11,6 +11,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import initSqlJs, { Database, SqlJsStatic } from "sql.js";
+import { inferDomain, normalizeForSearch } from "./core/brainDbCore";
 
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -587,6 +588,83 @@ class BrainDbService {
     return results.length > 0 ? results[0] : null;
   }
 
+  private getEffectiveDomain(doc: Pick<Doc, "domain" | "library">): string {
+    const raw = (doc.domain || "").trim();
+    if (!raw || raw === "general") {
+      return inferDomain(doc.library);
+    }
+    return raw;
+  }
+
+  private findDoc(library: string, topic: string, title: string): Doc | null {
+    const normalized = normalizeForSearch(library);
+    return this.queryOne<Doc>(
+      `
+      SELECT * FROM docs
+      WHERE topic = ?
+        AND title = ?
+        AND (
+          library = ?
+          OR REPLACE(REPLACE(LOWER(library), '.', ''), ' ', '') = ?
+        )
+      `,
+      [topic, title, library, normalized],
+    );
+  }
+
+  private updateDoc(id: number, updates: Omit<Doc, "id" | "created_at">): boolean {
+    if (!this.db) return false;
+
+    try {
+      this.lastError = null;
+      const domain = this.getEffectiveDomain(updates);
+
+      this.db.run(
+        `
+        UPDATE docs
+        SET library = ?,
+            version = ?,
+            topic = ?,
+            title = ?,
+            content = ?,
+            source = ?,
+            url = ?,
+            category = ?,
+            domain = ?
+        WHERE id = ?
+      `,
+        [
+          updates.library,
+          updates.version || null,
+          updates.topic,
+          updates.title,
+          updates.content,
+          updates.source || "mcp",
+          updates.url || null,
+          updates.category || "documentation",
+          domain,
+          id,
+        ],
+      );
+
+      this.saveDatabase();
+      return true;
+    } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
+      console.error("[BrainMCP] Error updating doc:", error);
+      return false;
+    }
+  }
+
+  upsertDoc(doc: Omit<Doc, "id" | "created_at">): number | null {
+    const existing = this.findDoc(doc.library, doc.topic, doc.title);
+    if (existing?.id) {
+      this.updateDoc(existing.id, doc);
+      return existing.id;
+    }
+    return this.addDoc(doc);
+  }
+
   // =====================
   // Public API
   // =====================
@@ -688,6 +766,7 @@ class BrainDbService {
 
     try {
       this.lastError = null;
+      const domain = this.getEffectiveDomain(doc);
       this.db.run(
         `
         INSERT INTO docs (library, version, topic, title, content, source, url, category, domain)
@@ -702,7 +781,7 @@ class BrainDbService {
           doc.source || "mcp",
           doc.url || null,
           doc.category || "documentation",
-          doc.domain || "general",
+          domain,
         ],
       );
 
@@ -746,10 +825,7 @@ class BrainDbService {
   }
 
   appendToDoc(library: string, topic: string, title: string, newContent: string): number | null {
-    const existing = this.queryOne<Doc>(
-      "SELECT * FROM docs WHERE library = ? AND topic = ? AND title = ?",
-      [library, topic, title],
-    );
+    const existing = this.findDoc(library, topic, title);
 
     if (existing && existing.id) {
       const updatedContent = existing.content + "\n\n---\n\n" + newContent;
@@ -1054,7 +1130,7 @@ async function main() {
           };
         }
 
-        const id = db.addDoc({
+        const id = db.upsertDoc({
           library,
           topic,
           title,

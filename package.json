@@ -555,6 +555,12 @@
         "category": "Brain"
       },
       {
+        "command": "whytcard-brain.deduplicateDocs",
+        "title": "Deduplicate Docs",
+        "icon": "$(clean)",
+        "category": "Brain"
+      },
+      {
         "command": "whytcard-brain.setupMcp",
         "title": "Configure MCP Server (Windsurf/Cursor)",
         "icon": "$(server)",

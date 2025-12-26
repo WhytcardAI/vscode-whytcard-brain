@@ -17,6 +17,10 @@ type ToolResult = {
   isError?: boolean;
 };
 
+// SQL parameter types for type safety
+type SqlValue = string | number | null | Uint8Array;
+type SqlParams = SqlValue[];
+
 type BrainCategory = "instruction" | "documentation" | "project";
 
 type BrainConsultArgs = {
@@ -562,7 +566,7 @@ class BrainDbService {
     return mutated;
   }
 
-  private query<T>(sql: string, params?: any[]): T[] {
+  private query<T>(sql: string, params?: SqlParams): T[] {
     if (!this.db) return [];
 
     const stmt = this.db.prepare(sql);
@@ -578,7 +582,7 @@ class BrainDbService {
     return results;
   }
 
-  private queryOne<T>(sql: string, params?: any[]): T | null {
+  private queryOne<T>(sql: string, params?: SqlParams): T | null {
     const results = this.query<T>(sql, params);
     return results.length > 0 ? results[0] : null;
   }
@@ -608,7 +612,7 @@ class BrainDbService {
 
       const buildWhere = (where: string) => {
         let sql = `SELECT * FROM docs WHERE ${where}`;
-        const params: any[] = [];
+        const params: SqlParams = [];
 
         if (library) {
           const normalized = library.toLowerCase().replace(/[.\s]+/g, "");
@@ -648,7 +652,7 @@ class BrainDbService {
         .join(" OR ");
 
       const tokenQuery = buildWhere(`(${tokenWhere})`);
-      const tokenParams: any[] = [];
+      const tokenParams: SqlParams = [];
       for (const token of tokens) {
         const p = `%${token}%`;
         tokenParams.push(p, p, p);
@@ -783,7 +787,7 @@ class BrainDbService {
     try {
       const likePattern = `%${query}%`;
       let sql = `SELECT * FROM templates WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)`;
-      const params: any[] = [likePattern, likePattern, likePattern];
+      const params: SqlParams = [likePattern, likePattern, likePattern];
 
       if (framework) {
         sql += ` AND framework = ?`;

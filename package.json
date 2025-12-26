@@ -832,7 +832,7 @@
     "@types/node": "^20.10.0",
     "@types/sql.js": "^1.4.9",
     "@types/vscode": "^1.85.0",
-    "esbuild": "^0.19.8",
+    "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "mocha": "^11.7.5",
     "prettier": "^3.7.4",

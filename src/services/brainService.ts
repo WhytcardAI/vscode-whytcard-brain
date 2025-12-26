@@ -7,114 +7,29 @@ import * as fs from "fs";
 import * as path from "path";
 import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 
-// Types
-export interface Doc {
-  id?: number;
-  library: string;
-  version?: string;
-  topic: string;
-  title: string;
-  content: string;
-  source?: string;
-  url?: string;
-  category?: string; // 'instruction' | 'documentation' | 'project' | 'template'
-  domain?: string; // 'website' | 'mobile' | 'backend' | 'devops' | 'general'
-  created_at?: string;
-}
+// Re-export types from core module
+export {
+  type Doc,
+  type Pitfall,
+  type Template,
+  type BrainStats,
+  type BrainCategory,
+  inferDomain,
+  normalizeForSearch,
+} from "../core/brainDbCore";
 
-export interface Template {
-  id?: number;
-  name: string;
-  description: string;
-  language?: string; // 'typescript' | 'javascript' | 'python' | etc.
-  framework?: string; // 'nextjs' | 'react' | 'express' | etc.
-  tags?: string; // JSON array of tags
-  type: "snippet" | "file" | "multifile"; // Type de template
-  content: string; // JSON pour multifile, code direct pour snippet/file
-  usage_count?: number;
-  created_at?: string;
-  updated_at?: string;
-}
+import {
+  type Doc,
+  type Pitfall,
+  type Template,
+  type BrainStats,
+  inferDomain,
+  normalizeForSearch,
+} from "../core/brainDbCore";
 
-// Auto-mapping des libraries vers leur domaine
-const LIBRARY_DOMAIN_MAP: Record<string, string> = {
-  // Website / Frontend
-  nextjs: "website",
-  react: "website",
-  vue: "website",
-  angular: "website",
-  svelte: "website",
-  tailwind: "website",
-  shadcn: "website",
-  "next-intl": "website",
-  motion: "website",
-  framer: "website",
-  css: "website",
-  html: "website",
-  // Mobile
-  "react-native": "mobile",
-  expo: "mobile",
-  flutter: "mobile",
-  swift: "mobile",
-  kotlin: "mobile",
-  // Backend
-  node: "backend",
-  express: "backend",
-  fastify: "backend",
-  nest: "backend",
-  prisma: "backend",
-  drizzle: "backend",
-  postgres: "backend",
-  mongodb: "backend",
-  redis: "backend",
-  // DevOps
-  docker: "devops",
-  kubernetes: "devops",
-  vercel: "devops",
-  aws: "devops",
-  github: "devops",
-  // General
-  typescript: "general",
-  javascript: "general",
-  zod: "general",
-  copilot: "general",
-};
-
-export function inferDomain(library: string): string {
-  const key = normalizeForSearch(library);
-  return LIBRARY_DOMAIN_MAP[key] || "general";
-}
-
-/**
- * Normalisation légère pour améliorer:
- * - la détection de domaine (next.js -> nextjs)
- * - les filtres de recherche (insensible à la casse/points/espaces)
- */
-function normalizeForSearch(value: string): string {
-  return (value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[.\s]+/g, "")
-    .replace(/^nextjs$/, "nextjs");
-}
-
-export interface Pitfall {
-  id?: number;
-  symptom: string;
-  solution: string;
-  error?: string;
-  library?: string;
-  code?: string;
-  count?: number;
-  created_at?: string;
-}
-
-export interface BrainStats {
-  docs: number;
-  pitfalls: number;
-  templates: number;
-  dbSizeKb: number;
-}
+// SQL parameter types for type safety
+type SqlValue = string | number | null | Uint8Array;
+type SqlParams = SqlValue[];
 
 export interface UsageStats {
   searchCount: number;
@@ -423,7 +338,7 @@ export class BrainService {
   }
 
   // Helper to execute query and return objects
-  private query<T>(sql: string, params?: any[]): T[] {
+  private query<T>(sql: string, params?: SqlParams): T[] {
     if (!this.db) return [];
 
     const stmt = this.db.prepare(sql);
@@ -440,7 +355,7 @@ export class BrainService {
   }
 
   // Helper to execute query and return single object
-  private queryOne<T>(sql: string, params?: any[]): T | null {
+  private queryOne<T>(sql: string, params?: SqlParams): T | null {
     const results = this.query<T>(sql, params);
     return results.length > 0 ? results[0] : null;
   }
@@ -628,7 +543,7 @@ export class BrainService {
     try {
       const likePattern = `%${query}%`;
       let sql = `SELECT * FROM docs WHERE (title LIKE ? OR content LIKE ? OR topic LIKE ?)`;
-      const params: any[] = [likePattern, likePattern, likePattern];
+      const params: SqlParams = [likePattern, likePattern, likePattern];
 
       if (library) {
         // Match both raw library and a normalized view (removes dots/spaces, lowercases)
@@ -821,7 +736,7 @@ export class BrainService {
         SELECT * FROM templates
         WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)
       `;
-      const params: any[] = [likePattern, likePattern, likePattern];
+      const params: SqlParams = [likePattern, likePattern, likePattern];
 
       if (framework) {
         sql += " AND framework = ?";
@@ -880,7 +795,7 @@ export class BrainService {
 
     try {
       const fields: string[] = [];
-      const values: any[] = [];
+      const values: SqlParams = [];
 
       if (updates.name !== undefined) {
         fields.push("name = ?");

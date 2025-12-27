@@ -9,6 +9,9 @@ import { getBrainService, inferDomain, type Doc } from "../services/brainService
 
 export type DocCategory = "instruction" | "documentation" | "project";
 
+type DocsSortMode = "titleAsc" | "createdDesc" | "createdAsc";
+type DocClickAction = "view" | "sendToChat";
+
 // =====================
 // TREE ITEM
 // =====================
@@ -50,6 +53,12 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
 
   getChildren(element?: BrainTreeItem): Thenable<BrainTreeItem[]> {
     const service = getBrainService();
+
+    const config = vscode.workspace.getConfiguration("whytcard-brain");
+    const docsSort = (config.get<string>("docsSort", "titleAsc") as DocsSortMode) || "titleAsc";
+    const docClickAction =
+      (config.get<string>("docClickAction", "view") as DocClickAction) || "view";
+
     const allDocs = service
       .getAllDocs()
       .filter((d) => (d.category || "documentation") === this.category);
@@ -148,8 +157,25 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
         (d) => d.library === element.libraryName && d.topic === element.topicName,
       );
 
+      const toMs = (value?: string | null): number => {
+        if (!value) return 0;
+        const ms = Date.parse(value);
+        return Number.isFinite(ms) ? ms : 0;
+      };
+
+      const sortedDocs = [...docs].sort((a, b) => {
+        if (docsSort === "createdDesc") {
+          return toMs(b.created_at) - toMs(a.created_at);
+        }
+        if (docsSort === "createdAsc") {
+          return toMs(a.created_at) - toMs(b.created_at);
+        }
+        // Default: titleAsc
+        return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+      });
+
       return Promise.resolve(
-        docs.map((doc) => {
+        sortedDocs.map((doc) => {
           const item = new BrainTreeItem(doc.title, vscode.TreeItemCollapsibleState.None);
           item.iconPath = new vscode.ThemeIcon("note");
           item.contextValue = "doc";
@@ -161,11 +187,18 @@ export class CategoryTreeProvider implements vscode.TreeDataProvider<BrainTreeIt
             `**${doc.title}**\n\n` +
               `${doc.content.substring(0, 200)}${doc.content.length > 200 ? "..." : ""}`,
           );
-          item.command = {
-            command: "whytcard-brain.viewEntry",
-            title: "Voir",
-            arguments: [item],
-          };
+          item.command =
+            docClickAction === "sendToChat"
+              ? {
+                  command: "whytcard-brain.sendEntryToChat",
+                  title: "Envoyer au chat",
+                  arguments: [item],
+                }
+              : {
+                  command: "whytcard-brain.viewEntry",
+                  title: "Voir",
+                  arguments: [item],
+                };
           return item;
         }),
       );

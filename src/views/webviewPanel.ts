@@ -92,11 +92,49 @@ export class BrainWebviewPanel {
           vscode.window.showInformationMessage("Document complet copié");
         }
         break;
+      case "sendToChat":
+        if (this._currentDoc) {
+          const payload =
+            `# Brain Doc: ${this._currentDoc.title}\n\n` +
+            `Library: ${this._currentDoc.library}\n` +
+            `Topic: ${this._currentDoc.topic}\n` +
+            (this._currentDoc.category ? `Category: ${this._currentDoc.category}\n` : "") +
+            (this._currentDoc.domain ? `Domain: ${this._currentDoc.domain}\n` : "") +
+            (this._currentDoc.url ? `Source: ${this._currentDoc.url}\n` : "") +
+            `\n---\n\n` +
+            `${this._currentDoc.content}`;
+          await this._sendTextToChat(payload);
+        }
+        break;
       case "openUrl":
         if (message.data && typeof message.data === "string") {
           vscode.env.openExternal(vscode.Uri.parse(message.data));
         }
         break;
+    }
+  }
+
+  private async _sendTextToChat(text: string): Promise<void> {
+    await vscode.env.clipboard.writeText(text);
+
+    const tryOpen = async (commandId: string): Promise<boolean> => {
+      try {
+        await vscode.commands.executeCommand(commandId);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const opened =
+      (await tryOpen("workbench.action.chat.open")) || (await tryOpen("vscode.editorChat.start"));
+
+    if (opened) {
+      vscode.window.showInformationMessage("Contenu copié. Colle-le dans le chat pour l'envoyer.");
+    } else {
+      vscode.window.showInformationMessage(
+        "Contenu copié dans le presse-papier. Ouvre Copilot Chat et colle pour l'envoyer.",
+      );
     }
   }
 
@@ -199,7 +237,7 @@ export class BrainWebviewPanel {
 </head>
 <body>
   <h1>📄 ${template.name}</h1>
-  
+
   <div class="meta">
     <span class="badge type">${template.type}</span>
     ${template.framework ? `<span class="badge framework">${template.framework}</span>` : ""}
@@ -408,6 +446,10 @@ export class BrainWebviewPanel {
           <svg viewBox="0 0 16 16"><path d="M4 4h8v8H4V4zm1 1v6h6V5H5zM2 2v8h1V3h7V2H2z"/></svg>
           Copier
         </button>
+        <button class="action-btn" onclick="sendToChat()" title="Envoyer au chat">
+          <svg viewBox="0 0 16 16"><path d="M2 2h12v8H6l-3.5 3.5V10H2V2zm1 1v6h1.5v2.086L5.586 9H13V3H3z"/></svg>
+          Chat
+        </button>
       </div>
     </div>
     <div class="badges">
@@ -453,6 +495,9 @@ export class BrainWebviewPanel {
     }
     function copyAll() {
       vscode.postMessage({ command: 'copyAll' });
+    }
+    function sendToChat() {
+      vscode.postMessage({ command: 'sendToChat' });
     }
     function openUrl(url) {
       vscode.postMessage({ command: 'openUrl', data: url });

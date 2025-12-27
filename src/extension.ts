@@ -7,8 +7,14 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
+import { z } from "zod";
 import { registerBrainChatParticipant } from "./chat/brainChatParticipant";
 import { BrainDocumentProvider } from "./providers/brainDocumentProvider";
+import {
+  DocsDragAndDropController,
+  TemplatesDragAndDropController,
+} from "./providers/dragAndDropControllers";
+import { TemplatesTreeProvider, TemplateTreeItem } from "./providers/templatesTreeProvider";
 import {
   BrainTreeItem,
   ContextTreeProvider,
@@ -16,25 +22,25 @@ import {
   InstructionsTreeProvider,
   StatsTreeProvider,
 } from "./providers/treeProviders";
-import { TemplatesTreeProvider, TemplateTreeItem } from "./providers/templatesTreeProvider";
 import {
   disposeBrainService,
   getBrainService,
+  inferDomain,
   setStoragePath,
   type Doc,
 } from "./services/brainService";
+import { McpSetupService } from "./services/mcpSetupService";
 import { registerBrainTools } from "./tools/brainTools";
-import { buildDeduplicateDocsPlan } from "./utils/deduplicateDocs";
 import {
   buildCopilotInstructionsContent,
   buildCursorRulesContent,
   buildWindsurfRulesContent,
-  mergeBrainInstructionsBlock,
   getConfigFromSettings,
+  mergeBrainInstructionsBlock,
   type BrainInstructionConfig,
 } from "./utils/copilotUtils";
+import { buildDeduplicateDocsPlan } from "./utils/deduplicateDocs";
 import { BrainWebviewPanel } from "./views/webviewPanel";
-import { McpSetupService } from "./services/mcpSetupService";
 
 let statusBarItem: vscode.StatusBarItem;
 let dbWatcher: fs.FSWatcher | undefined;
@@ -199,24 +205,60 @@ export async function activate(context: vscode.ExtensionContext) {
   const templatesProvider = new TemplatesTreeProvider();
   const statsProvider = new StatsTreeProvider();
 
+  const refreshAll = (reloadDb = false) => {
+    // Reload DB from disk to catch external changes (MCP tools, other windows)
+    if (reloadDb) {
+      service.reloadFromDisk();
+    }
+    instructionsProvider.refresh();
+    documentationProvider.refresh();
+    contextProvider.refresh();
+    templatesProvider.refresh();
+    statsProvider.refresh();
+    updateStatusBar();
+  };
+
+  const instructionsDnD = new DocsDragAndDropController({
+    category: "instruction",
+    refresh: () => refreshAll(true),
+  });
+
+  const documentationDnD = new DocsDragAndDropController({
+    category: "documentation",
+    refresh: () => refreshAll(true),
+  });
+
+  const contextDnD = new DocsDragAndDropController({
+    category: "project",
+    refresh: () => refreshAll(true),
+  });
+
+  const templatesDnD = new TemplatesDragAndDropController({
+    refresh: () => refreshAll(true),
+  });
+
   const instructionsView = vscode.window.createTreeView("whytcard-brain.instructions", {
     treeDataProvider: instructionsProvider,
     showCollapseAll: true,
+    dragAndDropController: instructionsDnD,
   });
 
   const documentationView = vscode.window.createTreeView("whytcard-brain.documentation", {
     treeDataProvider: documentationProvider,
     showCollapseAll: true,
+    dragAndDropController: documentationDnD,
   });
 
   const contextView = vscode.window.createTreeView("whytcard-brain.context", {
     treeDataProvider: contextProvider,
     showCollapseAll: true,
+    dragAndDropController: contextDnD,
   });
 
   const templatesView = vscode.window.createTreeView("whytcard-brain.templates", {
     treeDataProvider: templatesProvider,
     showCollapseAll: true,
+    dragAndDropController: templatesDnD,
   });
 
   const statsView = vscode.window.createTreeView("whytcard-brain.stats", {
@@ -291,19 +333,6 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   }
 
-  const refreshAll = (reloadDb = false) => {
-    // Reload DB from disk to catch external changes (MCP tools, other windows)
-    if (reloadDb) {
-      service.reloadFromDisk();
-    }
-    instructionsProvider.refresh();
-    documentationProvider.refresh();
-    contextProvider.refresh();
-    templatesProvider.refresh();
-    statsProvider.refresh();
-    updateStatusBar();
-  };
-
   console.log("Attempting to connect to database...");
   // Connect is now async - MUST wait before registering tools
   const success = await service.connect();
@@ -363,6 +392,666 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     // Refresh (reload DB from disk)
     vscode.commands.registerCommand("whytcard-brain.refresh", () => refreshAll(true)),
+
+    // Sort docs (sidebar views)
+    vscode.commands.registerCommand("whytcard-brain.setDocsSort", async () => {
+      const config = vscode.workspace.getConfiguration("whytcard-brain");
+      const current = config.get<string>("docsSort", "titleAsc");
+
+      const picked = await vscode.window.showQuickPick(
+        [
+          {
+            label: "Title (A → Z)",
+            description: "titleAsc",
+            value: "titleAsc" as const,
+          },
+          {
+            label: "Created (new → old)",
+            description: "createdDesc",
+            value: "createdDesc" as const,
+          },
+          {
+            label: "Created (old → new)",
+            description: "createdAsc",
+            value: "createdAsc" as const,
+          },
+        ],
+        {
+          placeHolder: `Current: ${current}`,
+        },
+      );
+
+      if (!picked) {
+        return;
+      }
+
+      const target =
+        (vscode.workspace.workspaceFolders?.length ?? 0) > 0
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global;
+
+      await config.update("docsSort", picked.value, target);
+      refreshAll(false);
+    }),
+
+    // What happens when clicking a doc in the sidebar
+    vscode.commands.registerCommand("whytcard-brain.setDocClickAction", async () => {
+      const config = vscode.workspace.getConfiguration("whytcard-brain");
+      const current = config.get<string>("docClickAction", "view");
+
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: "View entry", description: "view", value: "view" as const },
+          { label: "Send to chat", description: "sendToChat", value: "sendToChat" as const },
+        ],
+        {
+          placeHolder: `Current: ${current}`,
+        },
+      );
+
+      if (!picked) {
+        return;
+      }
+
+      const target =
+        (vscode.workspace.workspaceFolders?.length ?? 0) > 0
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global;
+      await config.update("docClickAction", picked.value, target);
+      refreshAll(false);
+    }),
+
+    // Send a doc to chat (best effort)
+    vscode.commands.registerCommand(
+      "whytcard-brain.sendEntryToChat",
+      async (item: BrainTreeItem) => {
+        if (!item?.entryId) {
+          vscode.window.showErrorMessage("Aucune entrée sélectionnée.");
+          return;
+        }
+
+        const service = getBrainService();
+        const doc = item.entryData ?? service.getDocById(item.entryId);
+        if (!doc) {
+          vscode.window.showErrorMessage("Document introuvable dans la base.");
+          return;
+        }
+
+        const payload =
+          `# Brain Doc: ${doc.title}\n\n` +
+          `Library: ${doc.library}\n` +
+          `Topic: ${doc.topic}\n` +
+          (doc.category ? `Category: ${doc.category}\n` : "") +
+          (doc.domain ? `Domain: ${doc.domain}\n` : "") +
+          (doc.url ? `Source: ${doc.url}\n` : "") +
+          `\n---\n\n` +
+          `${doc.content}`;
+
+        await vscode.env.clipboard.writeText(payload);
+
+        // Best-effort open chat UI. No stable API exists across all hosts to auto-submit.
+        const tryOpen = async (commandId: string): Promise<boolean> => {
+          try {
+            await vscode.commands.executeCommand(commandId);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+
+        const opened =
+          (await tryOpen("workbench.action.chat.open")) ||
+          (await tryOpen("vscode.editorChat.start"));
+
+        if (opened) {
+          vscode.window.showInformationMessage(
+            "Contenu copié. Colle-le dans le chat pour l'envoyer.",
+          );
+        } else {
+          vscode.window.showInformationMessage(
+            "Contenu copié dans le presse-papier. Ouvre Copilot Chat et colle pour l'envoyer.",
+          );
+        }
+      },
+    ),
+
+    // Rename a doc entry (title)
+    vscode.commands.registerCommand("whytcard-brain.renameEntry", async (item: BrainTreeItem) => {
+      // Bulk rename on group nodes
+      if (item?.contextValue === "topic") {
+        if (!item.libraryName || !item.topicName) {
+          vscode.window.showErrorMessage("Topic invalide.");
+          return;
+        }
+
+        const service = getBrainService();
+        const category = (item.docCategory || "documentation") as string;
+
+        const nextTopic = await vscode.window.showInputBox({
+          prompt: "Nouveau nom de topic",
+          value: item.topicName,
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Topic requis").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+
+        if (nextTopic === undefined) {
+          return;
+        }
+
+        const parsed = z.string().trim().min(1).safeParse(nextTopic);
+        if (!parsed.success) {
+          vscode.window.showErrorMessage("Topic invalide.");
+          return;
+        }
+
+        const docs = service
+          .getAllDocs()
+          .filter(
+            (d) =>
+              (d.category || "documentation") === category &&
+              d.library === item.libraryName &&
+              d.topic === item.topicName,
+          );
+
+        let updated = 0;
+        let failed = 0;
+        for (const d of docs) {
+          if (typeof d.id !== "number") {
+            failed += 1;
+            continue;
+          }
+          const ok = service.updateDoc(d.id, { topic: parsed.data });
+          if (ok) updated += 1;
+          else failed += 1;
+        }
+
+        refreshAll(true);
+        if (failed > 0) {
+          vscode.window.showWarningMessage(`Renommage topic: ${updated} ok, ${failed} échec(s).`);
+        } else {
+          vscode.window.showInformationMessage(`Topic renommé (${updated} doc(s)).`);
+        }
+        return;
+      }
+
+      if (item?.contextValue === "library") {
+        if (!item.libraryName) {
+          vscode.window.showErrorMessage("Library invalide.");
+          return;
+        }
+
+        const service = getBrainService();
+        const category = (item.docCategory || "documentation") as string;
+
+        const nextLibrary = await vscode.window.showInputBox({
+          prompt: "Nouveau nom de library",
+          value: item.libraryName,
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Library requise").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+
+        if (nextLibrary === undefined) {
+          return;
+        }
+
+        const parsed = z.string().trim().min(1).safeParse(nextLibrary);
+        if (!parsed.success) {
+          vscode.window.showErrorMessage("Library invalide.");
+          return;
+        }
+
+        const docs = service
+          .getAllDocs()
+          .filter(
+            (d) => (d.category || "documentation") === category && d.library === item.libraryName,
+          );
+
+        let updated = 0;
+        let failed = 0;
+        for (const d of docs) {
+          if (typeof d.id !== "number") {
+            failed += 1;
+            continue;
+          }
+
+          // Preserve where it appears in the tree by freezing the current effective domain
+          // when domain is not explicitly set.
+          const currentEffectiveDomain = inferDomain(d.library);
+          const shouldFreezeDomain = !d.domain || d.domain === "general";
+
+          const ok = service.updateDoc(d.id, {
+            library: parsed.data,
+            domain: shouldFreezeDomain ? currentEffectiveDomain : d.domain,
+          });
+
+          if (ok) updated += 1;
+          else failed += 1;
+        }
+
+        refreshAll(true);
+        if (failed > 0) {
+          vscode.window.showWarningMessage(`Renommage library: ${updated} ok, ${failed} échec(s).`);
+        } else {
+          vscode.window.showInformationMessage(`Library renommée (${updated} doc(s)).`);
+        }
+        return;
+      }
+
+      if (!item?.entryId) {
+        vscode.window.showErrorMessage("Aucune entrée sélectionnée.");
+        return;
+      }
+
+      const service = getBrainService();
+      const doc = item.entryData ?? service.getDocById(item.entryId);
+      if (!doc) {
+        vscode.window.showErrorMessage("Document introuvable dans la base.");
+        return;
+      }
+
+      const nextTitle = await vscode.window.showInputBox({
+        prompt: "Nouveau titre",
+        value: doc.title,
+        validateInput: (value) => {
+          const res = z.string().trim().min(1, "Titre requis").safeParse(value);
+          return res.success ? undefined : res.error.issues[0]?.message;
+        },
+      });
+
+      if (nextTitle === undefined) {
+        return;
+      }
+
+      const parsed = z.string().trim().min(1).safeParse(nextTitle);
+      if (!parsed.success) {
+        vscode.window.showErrorMessage("Titre invalide.");
+        return;
+      }
+
+      const ok = service.updateDoc(item.entryId, { title: parsed.data });
+      if (!ok) {
+        vscode.window.showErrorMessage("Échec du renommage.");
+        return;
+      }
+
+      refreshAll(true);
+    }),
+
+    // Move a doc entry (category/domain/library/topic)
+    vscode.commands.registerCommand("whytcard-brain.moveEntry", async (item: BrainTreeItem) => {
+      // Bulk move on group nodes
+      if (item?.contextValue === "topic") {
+        if (!item.libraryName || !item.topicName) {
+          vscode.window.showErrorMessage("Topic invalide.");
+          return;
+        }
+
+        const service = getBrainService();
+        const category = (item.docCategory || "documentation") as string;
+
+        const nextLibrary = await vscode.window.showInputBox({
+          prompt: "Library de destination",
+          value: item.libraryName,
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Library requise").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+        if (nextLibrary === undefined) return;
+
+        const nextTopic = await vscode.window.showInputBox({
+          prompt: "Topic de destination",
+          value: item.topicName,
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Topic requis").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+        if (nextTopic === undefined) return;
+
+        const domainPick = await vscode.window.showQuickPick(
+          [
+            { label: "Auto (infer from library)", value: "__auto__" as const },
+            { label: "website", value: "website" as const },
+            { label: "mobile", value: "mobile" as const },
+            { label: "backend", value: "backend" as const },
+            { label: "devops", value: "devops" as const },
+            { label: "general", value: "general" as const },
+          ],
+          { placeHolder: "Domain de destination" },
+        );
+        if (!domainPick) return;
+
+        const libParsed = z.string().trim().min(1).safeParse(nextLibrary);
+        const topicParsed = z.string().trim().min(1).safeParse(nextTopic);
+        if (!libParsed.success || !topicParsed.success) {
+          vscode.window.showErrorMessage("Library/Topic invalides.");
+          return;
+        }
+
+        const nextDomain =
+          domainPick.value === "__auto__" ? inferDomain(libParsed.data) : domainPick.value;
+
+        const docs = service
+          .getAllDocs()
+          .filter(
+            (d) =>
+              (d.category || "documentation") === category &&
+              d.library === item.libraryName &&
+              d.topic === item.topicName,
+          );
+
+        let updated = 0;
+        let failed = 0;
+        for (const d of docs) {
+          if (typeof d.id !== "number") {
+            failed += 1;
+            continue;
+          }
+          const ok = service.updateDoc(d.id, {
+            library: libParsed.data,
+            topic: topicParsed.data,
+            domain: nextDomain,
+          });
+          if (ok) updated += 1;
+          else failed += 1;
+        }
+
+        refreshAll(true);
+        if (failed > 0) {
+          vscode.window.showWarningMessage(`Déplacement topic: ${updated} ok, ${failed} échec(s).`);
+        } else {
+          vscode.window.showInformationMessage(`Topic déplacé (${updated} doc(s)).`);
+        }
+        return;
+      }
+
+      if (item?.contextValue === "library") {
+        if (!item.libraryName) {
+          vscode.window.showErrorMessage("Library invalide.");
+          return;
+        }
+
+        const service = getBrainService();
+        const category = (item.docCategory || "documentation") as string;
+
+        const nextLibrary = await vscode.window.showInputBox({
+          prompt: "Library de destination (renomme si différent)",
+          value: item.libraryName,
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Library requise").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+        if (nextLibrary === undefined) return;
+
+        const domainPick = await vscode.window.showQuickPick(
+          [
+            { label: "Auto (infer from library)", value: "__auto__" as const },
+            { label: "website", value: "website" as const },
+            { label: "mobile", value: "mobile" as const },
+            { label: "backend", value: "backend" as const },
+            { label: "devops", value: "devops" as const },
+            { label: "general", value: "general" as const },
+          ],
+          { placeHolder: "Domain de destination" },
+        );
+        if (!domainPick) return;
+
+        const libParsed = z.string().trim().min(1).safeParse(nextLibrary);
+        if (!libParsed.success) {
+          vscode.window.showErrorMessage("Library invalide.");
+          return;
+        }
+
+        const nextDomain =
+          domainPick.value === "__auto__" ? inferDomain(libParsed.data) : domainPick.value;
+
+        const docs = service
+          .getAllDocs()
+          .filter(
+            (d) => (d.category || "documentation") === category && d.library === item.libraryName,
+          );
+
+        let updated = 0;
+        let failed = 0;
+        for (const d of docs) {
+          if (typeof d.id !== "number") {
+            failed += 1;
+            continue;
+          }
+          const ok = service.updateDoc(d.id, {
+            library: libParsed.data,
+            domain: nextDomain,
+          });
+          if (ok) updated += 1;
+          else failed += 1;
+        }
+
+        refreshAll(true);
+        if (failed > 0) {
+          vscode.window.showWarningMessage(
+            `Déplacement library: ${updated} ok, ${failed} échec(s).`,
+          );
+        } else {
+          vscode.window.showInformationMessage(`Library déplacée (${updated} doc(s)).`);
+        }
+        return;
+      }
+
+      if (!item?.entryId) {
+        vscode.window.showErrorMessage("Aucune entrée sélectionnée.");
+        return;
+      }
+
+      const service = getBrainService();
+      const doc = item.entryData ?? service.getDocById(item.entryId);
+      if (!doc) {
+        vscode.window.showErrorMessage("Document introuvable dans la base.");
+        return;
+      }
+
+      const categoryPick = await vscode.window.showQuickPick(
+        [
+          { label: "Instructions", value: "instruction" as const },
+          { label: "Documentation", value: "documentation" as const },
+          { label: "Context", value: "project" as const },
+        ],
+        { placeHolder: `Catégorie (actuel: ${doc.category || "documentation"})` },
+      );
+
+      if (!categoryPick) {
+        return;
+      }
+
+      const nextLibrary = await vscode.window.showInputBox({
+        prompt: "Library",
+        value: doc.library,
+        validateInput: (value) => {
+          const res = z.string().trim().min(1, "Library requise").safeParse(value);
+          return res.success ? undefined : res.error.issues[0]?.message;
+        },
+      });
+      if (nextLibrary === undefined) return;
+
+      const nextTopic = await vscode.window.showInputBox({
+        prompt: "Topic",
+        value: doc.topic,
+        validateInput: (value) => {
+          const res = z.string().trim().min(1, "Topic requis").safeParse(value);
+          return res.success ? undefined : res.error.issues[0]?.message;
+        },
+      });
+      if (nextTopic === undefined) return;
+
+      const domainPick = await vscode.window.showQuickPick(
+        [
+          { label: "Auto (infer from library)", value: "__auto__" as const },
+          { label: "website", value: "website" as const },
+          { label: "mobile", value: "mobile" as const },
+          { label: "backend", value: "backend" as const },
+          { label: "devops", value: "devops" as const },
+          { label: "general", value: "general" as const },
+        ],
+        { placeHolder: `Domain (actuel: ${doc.domain || inferDomain(doc.library)})` },
+      );
+      if (!domainPick) return;
+
+      const libParsed = z.string().trim().min(1).safeParse(nextLibrary);
+      const topicParsed = z.string().trim().min(1).safeParse(nextTopic);
+      if (!libParsed.success || !topicParsed.success) {
+        vscode.window.showErrorMessage("Library/Topic invalides.");
+        return;
+      }
+
+      const nextDomain =
+        domainPick.value === "__auto__" ? inferDomain(libParsed.data) : domainPick.value;
+
+      const ok = service.updateDoc(item.entryId, {
+        category: categoryPick.value,
+        library: libParsed.data,
+        topic: topicParsed.data,
+        domain: nextDomain,
+      });
+
+      if (!ok) {
+        vscode.window.showErrorMessage("Échec du déplacement.");
+        return;
+      }
+
+      refreshAll(true);
+    }),
+
+    // Delete a doc entry
+    vscode.commands.registerCommand("whytcard-brain.deleteEntry", async (item: BrainTreeItem) => {
+      // Bulk delete on group nodes
+      if (item?.contextValue === "topic") {
+        if (!item.libraryName || !item.topicName) {
+          vscode.window.showErrorMessage("Topic invalide.");
+          return;
+        }
+
+        const service = getBrainService();
+        const category = (item.docCategory || "documentation") as string;
+        const docs = service
+          .getAllDocs()
+          .filter(
+            (d) =>
+              (d.category || "documentation") === category &&
+              d.library === item.libraryName &&
+              d.topic === item.topicName,
+          );
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Supprimer définitivement ${docs.length} doc(s) du topic "${item.topicName}" ?`,
+          { modal: true },
+          "Delete",
+          "Cancel",
+        );
+        if (confirm !== "Delete") {
+          return;
+        }
+
+        let deleted = 0;
+        let failed = 0;
+        for (const d of docs) {
+          if (typeof d.id !== "number") {
+            failed += 1;
+            continue;
+          }
+          const ok = service.deleteDoc(d.id);
+          if (ok) deleted += 1;
+          else failed += 1;
+        }
+
+        refreshAll(true);
+        if (failed > 0) {
+          vscode.window.showWarningMessage(`Suppression topic: ${deleted} ok, ${failed} échec(s).`);
+        } else {
+          vscode.window.showInformationMessage(`Topic supprimé (${deleted} doc(s)).`);
+        }
+        return;
+      }
+
+      if (item?.contextValue === "library") {
+        if (!item.libraryName) {
+          vscode.window.showErrorMessage("Library invalide.");
+          return;
+        }
+
+        const service = getBrainService();
+        const category = (item.docCategory || "documentation") as string;
+        const docs = service
+          .getAllDocs()
+          .filter(
+            (d) => (d.category || "documentation") === category && d.library === item.libraryName,
+          );
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Supprimer définitivement ${docs.length} doc(s) de la library "${item.libraryName}" ?`,
+          { modal: true },
+          "Delete",
+          "Cancel",
+        );
+        if (confirm !== "Delete") {
+          return;
+        }
+
+        let deleted = 0;
+        let failed = 0;
+        for (const d of docs) {
+          if (typeof d.id !== "number") {
+            failed += 1;
+            continue;
+          }
+          const ok = service.deleteDoc(d.id);
+          if (ok) deleted += 1;
+          else failed += 1;
+        }
+
+        refreshAll(true);
+        if (failed > 0) {
+          vscode.window.showWarningMessage(
+            `Suppression library: ${deleted} ok, ${failed} échec(s).`,
+          );
+        } else {
+          vscode.window.showInformationMessage(`Library supprimée (${deleted} doc(s)).`);
+        }
+        return;
+      }
+
+      if (!item?.entryId) {
+        vscode.window.showErrorMessage("Aucune entrée sélectionnée.");
+        return;
+      }
+
+      const service = getBrainService();
+      const doc = item.entryData ?? service.getDocById(item.entryId);
+      const title = doc?.title || item.label;
+
+      const confirm = await vscode.window.showWarningMessage(
+        `Supprimer définitivement: "${title}" ?`,
+        { modal: true },
+        "Delete",
+        "Cancel",
+      );
+
+      if (confirm !== "Delete") {
+        return;
+      }
+
+      const ok = service.deleteDoc(item.entryId);
+      if (!ok) {
+        vscode.window.showErrorMessage("Échec de la suppression.");
+        return;
+      }
+
+      refreshAll(true);
+    }),
 
     // Voir une entrée
     vscode.commands.registerCommand("whytcard-brain.viewEntry", (item: BrainTreeItem) => {
@@ -481,6 +1170,137 @@ export async function activate(context: vscode.ExtensionContext) {
         BrainWebviewPanel.showTemplate(context.extensionUri, item.templateData);
       }
     }),
+
+    // Rename Template
+    vscode.commands.registerCommand(
+      "whytcard-brain.renameTemplate",
+      async (item: TemplateTreeItem) => {
+        if (!item?.templateId) {
+          vscode.window.showErrorMessage("Aucun template sélectionné.");
+          return;
+        }
+
+        const service = getBrainService();
+        const template = item.templateData ?? service.getTemplateById(item.templateId);
+        if (!template) {
+          vscode.window.showErrorMessage("Template introuvable.");
+          return;
+        }
+
+        const nextName = await vscode.window.showInputBox({
+          prompt: "Nouveau nom du template",
+          value: template.name,
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Nom requis").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+
+        if (nextName === undefined) return;
+
+        const parsed = z.string().trim().min(1).safeParse(nextName);
+        if (!parsed.success) {
+          vscode.window.showErrorMessage("Nom invalide.");
+          return;
+        }
+
+        const ok = service.updateTemplate(item.templateId, { name: parsed.data });
+        if (!ok) {
+          vscode.window.showErrorMessage("Échec du renommage (nom déjà pris ?).");
+          return;
+        }
+
+        refreshAll(true);
+      },
+    ),
+
+    // Move Template (framework/type)
+    vscode.commands.registerCommand(
+      "whytcard-brain.moveTemplate",
+      async (item: TemplateTreeItem) => {
+        if (!item?.templateId) {
+          vscode.window.showErrorMessage("Aucun template sélectionné.");
+          return;
+        }
+
+        const service = getBrainService();
+        const template = item.templateData ?? service.getTemplateById(item.templateId);
+        if (!template) {
+          vscode.window.showErrorMessage("Template introuvable.");
+          return;
+        }
+
+        const nextFramework = await vscode.window.showInputBox({
+          prompt: "Framework",
+          value: template.framework || "general",
+          validateInput: (value) => {
+            const res = z.string().trim().min(1, "Framework requis").safeParse(value);
+            return res.success ? undefined : res.error.issues[0]?.message;
+          },
+        });
+        if (nextFramework === undefined) return;
+
+        const nextType = await vscode.window.showQuickPick(
+          [
+            { label: "snippet", value: "snippet" as const },
+            { label: "file", value: "file" as const },
+            { label: "multifile", value: "multifile" as const },
+          ],
+          { placeHolder: `Type (actuel: ${template.type})` },
+        );
+        if (!nextType) return;
+
+        const fwParsed = z.string().trim().min(1).safeParse(nextFramework);
+        if (!fwParsed.success) {
+          vscode.window.showErrorMessage("Framework invalide.");
+          return;
+        }
+
+        const ok = service.updateTemplate(item.templateId, {
+          framework: fwParsed.data,
+          type: nextType.value,
+        });
+        if (!ok) {
+          vscode.window.showErrorMessage("Échec du déplacement.");
+          return;
+        }
+
+        refreshAll(true);
+      },
+    ),
+
+    // Delete Template
+    vscode.commands.registerCommand(
+      "whytcard-brain.deleteTemplate",
+      async (item: TemplateTreeItem) => {
+        if (!item?.templateId) {
+          vscode.window.showErrorMessage("Aucun template sélectionné.");
+          return;
+        }
+
+        const service = getBrainService();
+        const template = item.templateData ?? service.getTemplateById(item.templateId);
+        const name = template?.name || item.label;
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Supprimer définitivement le template: "${name}" ?`,
+          { modal: true },
+          "Delete",
+          "Cancel",
+        );
+        if (confirm !== "Delete") {
+          return;
+        }
+
+        const ok = service.deleteTemplate(item.templateId);
+        if (!ok) {
+          vscode.window.showErrorMessage("Échec de la suppression du template.");
+          return;
+        }
+
+        refreshAll(true);
+      },
+    ),
 
     // Open Getting Started Walkthrough
     vscode.commands.registerCommand("whytcard-brain.openWalkthrough", () => {

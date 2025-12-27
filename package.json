@@ -543,6 +543,18 @@
         "category": "Brain"
       },
       {
+        "command": "whytcard-brain.setDocsSort",
+        "title": "Sort Docs…",
+        "icon": "$(sort-precedence)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.setDocClickAction",
+        "title": "Doc Click Action…",
+        "icon": "$(mouse)",
+        "category": "Brain"
+      },
+      {
         "command": "whytcard-brain.installCopilotInstructions",
         "title": "Install Copilot Chat Instructions",
         "icon": "$(copilot)",
@@ -552,6 +564,48 @@
         "command": "whytcard-brain.search",
         "title": "Search",
         "icon": "$(search)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.sendEntryToChat",
+        "title": "Send to Chat",
+        "icon": "$(comment-discussion)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.renameEntry",
+        "title": "Rename…",
+        "icon": "$(edit)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.moveEntry",
+        "title": "Move…",
+        "icon": "$(folder)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.deleteEntry",
+        "title": "Delete",
+        "icon": "$(trash)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.renameTemplate",
+        "title": "Rename Template…",
+        "icon": "$(edit)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.moveTemplate",
+        "title": "Move Template…",
+        "icon": "$(folder)",
+        "category": "Brain"
+      },
+      {
+        "command": "whytcard-brain.deleteTemplate",
+        "title": "Delete Template",
+        "icon": "$(trash)",
         "category": "Brain"
       },
       {
@@ -593,9 +647,66 @@
           "group": "navigation"
         },
         {
+          "command": "whytcard-brain.setDocsSort",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/",
+          "group": "navigation"
+        },
+        {
+          "command": "whytcard-brain.setDocClickAction",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/",
+          "group": "navigation"
+        },
+        {
           "command": "whytcard-brain.search",
           "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "whytcard-brain.viewEntry",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/ && viewItem == doc",
+          "group": "inline"
+        },
+        {
+          "command": "whytcard-brain.sendEntryToChat",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/ && viewItem == doc",
+          "group": "inline"
+        },
+        {
+          "command": "whytcard-brain.renameEntry",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/ && (viewItem == doc || viewItem == topic || viewItem == library)",
+          "group": "1_edit"
+        },
+        {
+          "command": "whytcard-brain.moveEntry",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/ && (viewItem == doc || viewItem == topic || viewItem == library)",
+          "group": "1_edit"
+        },
+        {
+          "command": "whytcard-brain.deleteEntry",
+          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/ && (viewItem == doc || viewItem == topic || viewItem == library)",
+          "group": "9_danger"
+        },
+        {
+          "command": "whytcard-brain.viewTemplate",
+          "when": "view == whytcard-brain.templates && viewItem == template",
+          "group": "inline"
+        },
+        {
+          "command": "whytcard-brain.renameTemplate",
+          "when": "view == whytcard-brain.templates && viewItem == template",
+          "group": "1_edit"
+        },
+        {
+          "command": "whytcard-brain.moveTemplate",
+          "when": "view == whytcard-brain.templates && viewItem == template",
+          "group": "1_edit"
+        },
+        {
+          "command": "whytcard-brain.deleteTemplate",
+          "when": "view == whytcard-brain.templates && viewItem == template",
+          "group": "9_danger"
         }
       ]
     },
@@ -660,6 +771,25 @@
     "configuration": {
       "title": "WhytCard Brain",
       "properties": {
+        "whytcard-brain.docsSort": {
+          "type": "string",
+          "enum": [
+            "titleAsc",
+            "createdDesc",
+            "createdAsc"
+          ],
+          "default": "titleAsc",
+          "description": "How docs are sorted in the Brain views."
+        },
+        "whytcard-brain.docClickAction": {
+          "type": "string",
+          "enum": [
+            "view",
+            "sendToChat"
+          ],
+          "default": "view",
+          "description": "What happens when you click a doc in the Brain sidebar."
+        },
         "whytcard-brain.autoInstallCopilotInstructions": {
           "type": "boolean",
           "default": true,
@@ -827,7 +957,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "node scripts/clean.js",
     "check": "npm run lint && npm run typecheck && npm run build && npm test && node scripts/test-brain-policy.js",
-    "package:vsix": "npx --yes @vscode/vsce package",
+    "package:vsix": "npm exec --yes @vscode/vsce package",
     "setup:cursor": "node scripts/one-click.js --editor cursor",
     "setup:windsurf": "node scripts/one-click.js --editor windsurf",
     "regenerate:instructions": "node scripts/regenerate-instructions.js"

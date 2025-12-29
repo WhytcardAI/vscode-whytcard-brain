@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.vsix
+.vscode-test/
+
+# Release/build artifacts (generated)
+Release.zip
+Release/*.vsix
+Release/*.zip
+mcp-smoke-stdout.txt
+mcp-smoke-stderr.txt
+
+# Local databases / outputs
+*.db
+*.sqlite
+*.sqlite3
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

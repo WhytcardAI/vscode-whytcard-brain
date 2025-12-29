@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support / Contact
+    url: https://whytcard.com/contact
+    about: This repository is public but not open to community contributions. Use this link for support.
+  - name: Security reports
+    url: https://whytcard.com/contact
+    about: Please report security issues privately (see SECURITY.md).

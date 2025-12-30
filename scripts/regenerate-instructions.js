@@ -1,11 +1,205 @@
 #!/usr/bin/env node
 /**
  * Script to regenerate Brain instruction files for all editors
- * Run: node scripts/regenerate-instructions.js
+ * Run: node scripts/regenerate-instructions.js [--theme=<theme>]
+ * 
+ * Themes:
+ *   - base: Core Brain rules only (default)
+ *   - nextjs-site: Next.js 16 + React 19 + Tailwind 4 website
+ *   - nextjs-app: Next.js 16 + React 19 full application
+ *   - react-app: React 19 SPA application
+ *   - node-api: Node.js API/Backend
+ * 
+ * The chat agent should call brainConsult to check if instructions exist,
+ * and if not, import them from Brain DB based on project type.
  */
 
 const fs = require("fs");
 const path = require("path");
+
+// Parse CLI arguments
+const args = process.argv.slice(2);
+const themeArg = args.find(a => a.startsWith("--theme="));
+const selectedTheme = themeArg ? themeArg.split("=")[1] : "base";
+
+// Available themes with their stack-specific rules
+const THEMES = {
+  base: {
+    name: "Base",
+    description: "Core Brain rules only",
+    stacks: [],
+  },
+  "nextjs-site": {
+    name: "Next.js 16 Website",
+    description: "Next.js 16 + React 19 + Tailwind 4 + i18n website",
+    stacks: ["nextjs16", "react19", "tailwind4", "i18n", "performance", "accessibility", "seo"],
+  },
+  "nextjs-app": {
+    name: "Next.js 16 Application",
+    description: "Next.js 16 + React 19 + TypeScript full application",
+    stacks: ["nextjs16", "react19", "typescript", "tailwind4", "performance"],
+  },
+  "react-app": {
+    name: "React 19 SPA",
+    description: "React 19 Single Page Application",
+    stacks: ["react19", "typescript", "tailwind4"],
+  },
+  "node-api": {
+    name: "Node.js API",
+    description: "Node.js backend API",
+    stacks: ["typescript", "nodejs"],
+  },
+};
+
+// Stack-specific instruction blocks
+const STACK_INSTRUCTIONS = {
+  nextjs16: `
+## Next.js 16 Breaking Changes
+
+### Async APIs (MUST await)
+| API | Status |
+|-----|--------|
+| \`params\` | Promise - await required |
+| \`searchParams\` | Promise - await required |
+| \`cookies()\` | Async - await required |
+| \`headers()\` | Async - await required |
+
+### Middleware Renamed
+\`middleware.ts\` → \`proxy.ts\`
+
+### Caching
+| Profile | Duration |
+|---------|----------|
+| \`seconds\` | 1s |
+| \`minutes\` | 5min |
+| \`hours\` | 1h |
+| \`days\` | 1 day |
+| \`max\` | 1 year |
+`,
+
+  react19: `
+## React 19 Patterns
+
+### Key Hooks
+| Hook | Purpose |
+|------|---------|
+| \`useActionState\` | Form state + pending (replaces useFormState) |
+| \`useFormStatus\` | Submit button pending state |
+| \`useOptimistic\` | Instant UI updates before server confirms |
+| \`use()\` | Unwrap Promises/Context conditionally |
+
+### ref as Prop
+No more \`forwardRef\` - pass ref directly as prop.
+`,
+
+  tailwind4: `
+## Tailwind CSS 4
+
+### Key Changes from v3
+| v3 | v4 |
+|----|----|
+| \`tailwind.config.js\` | \`@theme\` in CSS |
+| \`content: [...]\` | Auto-detection |
+
+### Configuration in CSS
+\`\`\`css
+@import "tailwindcss";
+@theme {
+  --color-primary: oklch(0.7 0.15 250);
+}
+\`\`\`
+`,
+
+  i18n: `
+## i18n - next-intl
+
+### Required Languages
+| Code | Language |
+|------|----------|
+| \`fr\` | Français (default) |
+| \`en\` | English |
+| \`de\` | Deutsch |
+
+### Rules
+- Zero hardcoded strings
+- All keys in all languages
+- Use \`proxy.ts\` (Next.js 16)
+`,
+
+  performance: `
+## Performance - Lighthouse 95+
+
+### Core Web Vitals
+| Metric | Target |
+|--------|--------|
+| LCP | < 2.5s |
+| INP | < 200ms |
+| CLS | < 0.1 |
+
+### Optimizations
+- Preconnect hints for external origins
+- Dynamic imports for below-the-fold
+- \`priority\` on LCP image only
+- Video \`preload="metadata"\`
+- CSS animations > JS animations
+- \`browserslist\` targets modern browsers
+`,
+
+  accessibility: `
+## Accessibility - WCAG 2.1 AA
+
+### Non-Negotiable
+| Element | Requirement |
+|---------|-------------|
+| Images | \`alt\` attribute |
+| Buttons/Links | Visible text OR \`aria-label\` |
+| Forms | \`<label>\` for every input |
+| Focus | Visible outline |
+| Contrast | 4.5:1 text, 3:1 UI |
+| Motion | Respect \`prefers-reduced-motion\` |
+`,
+
+  seo: `
+## SEO & Metadata
+
+### Required
+- Title: 50-60 chars, unique per page
+- Description: 150-160 chars
+- OpenGraph: 1200x630 image
+- Canonical URL on all pages
+- hreflang for all language versions
+- JSON-LD structured data
+`,
+
+  typescript: `
+## TypeScript Strict
+
+### Required tsconfig
+- \`strict: true\`
+- \`noUncheckedIndexedAccess: true\`
+
+### Forbidden
+| Pattern | Alternative |
+|---------|-------------|
+| \`any\` | \`unknown\` + type guard |
+| \`as Type\` | Type guard or validation |
+| \`// @ts-ignore\` | Fix the actual issue |
+`,
+
+  nodejs: `
+## Node.js Best Practices
+
+### Error Handling
+- Always use try/catch for async operations
+- Return proper HTTP status codes
+- Log errors with context
+
+### Security
+- Validate all inputs with Zod
+- Use environment variables for secrets
+- Implement rate limiting
+`,
+};
 
 // Default config matching extension defaults
 const DEFAULT_CONFIG = {
@@ -28,9 +222,32 @@ const DEFAULT_CONFIG = {
 };
 
 /**
+ * Build stack-specific rules section based on theme
+ */
+function buildStackRulesSection(themeName) {
+  const theme = THEMES[themeName];
+  if (!theme || theme.stacks.length === 0) {
+    return "";
+  }
+
+  const lines = [];
+  lines.push(`## STACK-SPECIFIC RULES (${theme.name})`);
+  lines.push("");
+
+  for (const stack of theme.stacks) {
+    if (STACK_INSTRUCTIONS[stack]) {
+      lines.push(STACK_INSTRUCTIONS[stack].trim());
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * Build instructions based on configuration
  */
-function buildInstructionsFromConfig(config, format) {
+function buildInstructionsFromConfig(config, format, themeName = "base") {
   const lang = config.language === "auto" ? "en" : config.language;
   const isMinimal = config.instructionStyle === "minimal";
   const isVerbose = config.instructionStyle === "verbose";
@@ -226,13 +443,20 @@ function buildInstructionsFromConfig(config, format) {
   }
   lines.push("");
 
+  // 6. Stack-specific rules (if theme specified)
+  const stackRules = buildStackRulesSection(themeName);
+  if (stackRules) {
+    lines.push(stackRules);
+  }
+
   return lines.join("\n");
 }
 
-function buildWindsurfRulesContent(config = DEFAULT_CONFIG) {
-  const content = buildInstructionsFromConfig(config, "windsurf");
+function buildWindsurfRulesContent(config = DEFAULT_CONFIG, themeName = "base") {
+  const content = buildInstructionsFromConfig(config, "windsurf", themeName);
   return `---
 trigger: always_on
+description: "WhytCard Brain - ${THEMES[themeName]?.name || 'Base'} rules"
 ---
 
 <!-- whytcard-brain:start -->
@@ -242,10 +466,10 @@ ${content}
 `;
 }
 
-function buildCursorRulesContent(config = DEFAULT_CONFIG) {
-  const content = buildInstructionsFromConfig(config, "cursor");
+function buildCursorRulesContent(config = DEFAULT_CONFIG, themeName = "base") {
+  const content = buildInstructionsFromConfig(config, "cursor", themeName);
   return `---
-description: WhytCard Brain - Local knowledge base rules for accurate AI responses
+description: WhytCard Brain - ${THEMES[themeName]?.name || 'Base'} rules for accurate AI responses
 globs: 
 alwaysApply: true
 ---
@@ -257,8 +481,8 @@ ${content}
 `;
 }
 
-function buildCopilotInstructionsContent(config = DEFAULT_CONFIG) {
-  const content = buildInstructionsFromConfig(config, "copilot");
+function buildCopilotInstructionsContent(config = DEFAULT_CONFIG, themeName = "base") {
+  const content = buildInstructionsFromConfig(config, "copilot", themeName);
   return `<!-- whytcard-brain:start -->
 ${content}<!-- whytcard-brain:end -->
 `;
@@ -278,29 +502,58 @@ function writeFile(filePath, content) {
 
 function main() {
   const projectRoot = path.resolve(__dirname, "..");
+  const theme = THEMES[selectedTheme] ? selectedTheme : "base";
 
-  console.log("Regenerating Brain instruction files...\n");
+  console.log("Regenerating Brain instruction files...");
+  console.log(`Theme: ${THEMES[theme].name} (${THEMES[theme].description})\n`);
+
+  if (THEMES[theme].stacks.length > 0) {
+    console.log(`Stacks included: ${THEMES[theme].stacks.join(", ")}\n`);
+  }
 
   // 1. Windsurf rules
   const windsurfDir = path.join(projectRoot, ".windsurf", "rules");
   ensureDir(windsurfDir);
-  writeFile(path.join(windsurfDir, "brain.md"), buildWindsurfRulesContent());
+  writeFile(path.join(windsurfDir, "brain.md"), buildWindsurfRulesContent(DEFAULT_CONFIG, theme));
 
   // 2. Cursor rules (new MDC format)
   const cursorDir = path.join(projectRoot, ".cursor", "rules");
   ensureDir(cursorDir);
-  writeFile(path.join(cursorDir, "brain.mdc"), buildCursorRulesContent());
+  writeFile(path.join(cursorDir, "brain.mdc"), buildCursorRulesContent(DEFAULT_CONFIG, theme));
 
   // 3. GitHub Copilot instructions
   const githubDir = path.join(projectRoot, ".github");
   ensureDir(githubDir);
-  writeFile(path.join(githubDir, "copilot-instructions.md"), buildCopilotInstructionsContent());
+  writeFile(path.join(githubDir, "copilot-instructions.md"), buildCopilotInstructionsContent(DEFAULT_CONFIG, theme));
+
+  // 4. VS Code Insiders (same as Copilot)
+  // Note: VS Code Insiders uses the same .github/copilot-instructions.md file
 
   console.log("\n✓ All instruction files regenerated!");
   console.log("\nFiles updated:");
-  console.log("  - .windsurf/rules/brain.md");
-  console.log("  - .cursor/rules/brain.mdc");
-  console.log("  - .github/copilot-instructions.md");
+  console.log("  - .windsurf/rules/brain.md (Windsurf + Windsurf Next)");
+  console.log("  - .cursor/rules/brain.mdc (Cursor)");
+  console.log("  - .github/copilot-instructions.md (VS Code + VS Code Insiders + GitHub Copilot)");
+  
+  console.log("\n📋 Available themes:");
+  for (const [key, value] of Object.entries(THEMES)) {
+    console.log(`  --theme=${key}: ${value.name} - ${value.description}`);
+  }
 }
 
-main();
+// Export functions for use in extension
+module.exports = {
+  THEMES,
+  STACK_INSTRUCTIONS,
+  DEFAULT_CONFIG,
+  buildStackRulesSection,
+  buildInstructionsFromConfig,
+  buildWindsurfRulesContent,
+  buildCursorRulesContent,
+  buildCopilotInstructionsContent,
+};
+
+// Run if called directly
+if (require.main === module) {
+  main();
+}

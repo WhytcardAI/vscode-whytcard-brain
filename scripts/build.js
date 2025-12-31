@@ -31,7 +31,14 @@ try {
 
 // 1. Build avec esbuild
 // On bundle sql.js (JS) mais on doit copier le WASM à côté
-console.log("1. Running esbuild...");
+console.log("1. Building Settings UI (Vite + React)...");
+execSync("npm run build:settings-ui", {
+  stdio: "inherit",
+});
+
+// 2. Build avec esbuild
+// On bundle sql.js (JS) mais on doit copier le WASM à côté
+console.log("2. Running esbuild...");
 execSync(
   "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
   {
@@ -39,8 +46,8 @@ execSync(
   },
 );
 
-// 2. Build MCP server (CommonJS format for Node compatibility)
-console.log("2. Building MCP server...");
+// 3. Build MCP server (CommonJS format for Node compatibility)
+console.log("3. Building MCP server...");
 execSync(
   "esbuild src/mcp-server.ts --bundle --outfile=dist/mcp-server.cjs --format=cjs --platform=node --target=node18",
   {
@@ -48,8 +55,8 @@ execSync(
   },
 );
 
-// 3. Copier le fichier WASM de sql.js vers dist/
-console.log("3. Copying sql-wasm.wasm...");
+// 4. Copier le fichier WASM de sql.js vers dist/
+console.log("4. Copying sql-wasm.wasm...");
 
 const wasmSrc = path.join(nodeModulesDir, "sql.js", "dist", "sql-wasm.wasm");
 const wasmDest = path.join(distDir, "sql-wasm.wasm");
@@ -62,8 +69,8 @@ if (fs.existsSync(wasmSrc)) {
   process.exit(1);
 }
 
-// 4. Copy MCP server to mcp-server/dist for npm package
-console.log("4. Preparing MCP npm package...");
+// 5. Copy MCP server to mcp-server/dist for npm package
+console.log("5. Preparing MCP npm package...");
 fs.copyFileSync(
   path.join(distDir, "mcp-server.cjs"),
   path.join(mcpServerDir, "mcp-server.cjs"),

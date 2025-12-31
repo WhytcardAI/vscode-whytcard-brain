@@ -7,15 +7,19 @@ export interface BrainInstructionConfig {
   autoSaveTemplates: boolean;
   instructionStyle: "minimal" | "standard" | "verbose";
   enabledTools: {
-    brainConsult: boolean;
-    brainSave: boolean;
-    brainBug: boolean;
-    brainSession: boolean;
-    brainSearch: boolean;
-    brainValidate: boolean;
-    brainTemplateSave: boolean;
-    brainTemplateSearch: boolean;
-    brainTemplateApply: boolean;
+    consult: boolean;
+    getInstructions: boolean;
+    getContext: boolean;
+    searchDocs: boolean;
+    storeDoc: boolean;
+    storePitfall: boolean;
+    logSession: boolean;
+    initProject: boolean;
+    analyzeError: boolean;
+    validate: boolean;
+    templateSearch: boolean;
+    templateSave: boolean;
+    templateApply: boolean;
   };
   language: "auto" | "en" | "fr";
 }
@@ -26,15 +30,19 @@ const DEFAULT_CONFIG: BrainInstructionConfig = {
   autoSaveTemplates: true,
   instructionStyle: "standard",
   enabledTools: {
-    brainConsult: true,
-    brainSave: true,
-    brainBug: true,
-    brainSession: true,
-    brainSearch: true,
-    brainValidate: true,
-    brainTemplateSave: true,
-    brainTemplateSearch: true,
-    brainTemplateApply: true,
+    consult: true,
+    getInstructions: true,
+    getContext: true,
+    searchDocs: true,
+    storeDoc: true,
+    storePitfall: true,
+    logSession: true,
+    initProject: true,
+    analyzeError: true,
+    validate: true,
+    templateSearch: true,
+    templateSave: true,
+    templateApply: true,
   },
   language: "auto",
 };
@@ -180,7 +188,7 @@ function buildInstructionsFromConfig(
   }
 
   // 1. Consult Brain
-  if (config.enabledTools.brainConsult) {
+  if (config.enabledTools.consult) {
     lines.push(`## 1. ${t.consultTitle}`);
     if (config.strictMode === "off") {
       lines.push(`- ${replace(t.consultRuleOff)}`);
@@ -206,9 +214,9 @@ function buildInstructionsFromConfig(
   }
 
   // 3. Continuous Learning
-  if (config.enabledTools.brainSave || config.enabledTools.brainBug) {
+  if (config.enabledTools.storeDoc || config.enabledTools.storePitfall) {
     lines.push(`## 3. ${t.saveTitle}`);
-    if (config.enabledTools.brainSave) {
+    if (config.enabledTools.storeDoc) {
       if (config.autoSave === "always") {
         lines.push(`- ${replace(t.saveRuleAlways)}`);
       } else if (config.autoSave === "ask") {
@@ -217,17 +225,17 @@ function buildInstructionsFromConfig(
         lines.push(`- ${replace(t.saveRuleOff)}`);
       }
     }
-    if (config.enabledTools.brainBug) {
+    if (config.enabledTools.storePitfall) {
       lines.push(`- ${replace(t.bugRule)}`);
     }
-    if (config.enabledTools.brainSession && !isMinimal) {
+    if (config.enabledTools.logSession && !isMinimal) {
       lines.push(`- ${replace(t.sessionRule)}`);
     }
     lines.push("");
   }
 
   // 4. Templates
-  if (config.autoSaveTemplates && config.enabledTools.brainTemplateSave) {
+  if (config.autoSaveTemplates && config.enabledTools.templateSave) {
     lines.push(`## 4. ${t.templateTitle}`);
     lines.push(`- ${replace(t.templateRule)}`);
     lines.push("");
@@ -254,7 +262,7 @@ export function buildCursorRulesContent(config: BrainInstructionConfig = DEFAULT
   // MDC format with frontmatter for Cursor v0.45+
   return `---
 description: WhytCard Brain - Local knowledge base rules for accurate AI responses
-globs: 
+globs:
 alwaysApply: true
 ---
 

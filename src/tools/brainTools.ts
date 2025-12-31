@@ -5,8 +5,8 @@
 
 import * as vscode from "vscode";
 import { getBrainService, trackError, trackUsage } from "../services/brainService";
-import { ProjectInitService } from "../services/projectInitService";
 import { DiagnosticsService } from "../services/diagnosticsService";
+import { ProjectInitService } from "../services/projectInitService";
 
 // Interfaces pour les inputs des outils
 interface SearchDocsInput {
@@ -861,6 +861,83 @@ class TemplateSaveTool implements vscode.LanguageModelTool<TemplateSaveInput> {
   }
 }
 
+// Interface pour validate
+interface ValidateInput {
+  draft: string;
+}
+
+/**
+ * Outil pour valider une réponse contre la politique Brain
+ */
+class ValidateTool implements vscode.LanguageModelTool<ValidateInput> {
+  async invoke(
+    options: vscode.LanguageModelToolInvocationOptions<ValidateInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelToolResult> {
+    try {
+      const { draft } = options.input;
+      const issues: string[] = [];
+
+      const trimmed = draft.trim();
+      const head = trimmed.slice(0, 400).toLowerCase();
+
+      // Vérifier que la réponse cite ses sources
+      if (!head.includes("basé sur") && !head.includes("based on") && !head.includes("selon")) {
+        issues.push('La réponse devrait citer ses sources (ex: "Basé sur ..." / "Based on ...").');
+      }
+
+      // Détecter le langage spéculatif
+      const hedgeRegexes = [
+        /\bje\s+crois\b/i,
+        /\bje\s+pense\b/i,
+        /\bpeut[- ]?être\b/i,
+        /\bprobablement\b/i,
+        /\bi\s+think\b/i,
+        /\bmaybe\b/i,
+        /\bmight\b/i,
+        /\bnot\s+sure\b/i,
+        /\bshould\s+work\b/i,
+      ];
+
+      for (const re of hedgeRegexes) {
+        if (re.test(trimmed)) {
+          issues.push(
+            "La réponse contient du langage spéculatif. Utilise uniquement des faits documentés.",
+          );
+          break;
+        }
+      }
+
+      if (issues.length > 0) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            "❌ Validation Brain échouée:\n\n" + issues.map((i) => `- ${i}`).join("\n"),
+          ),
+        ]);
+      }
+
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart("✅ Validation Brain réussie."),
+      ]);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      trackError(`validate: ${errMsg}`);
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(`Erreur de validation: ${errMsg}`),
+      ]);
+    }
+  }
+
+  async prepareInvocation(
+    _options: vscode.LanguageModelToolInvocationPrepareOptions<ValidateInput>,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.PreparedToolInvocation> {
+    return {
+      invocationMessage: `Validation de la réponse contre la politique Brain...`,
+    };
+  }
+}
+
 /**
  * Outil pour appliquer un template
  */
@@ -944,13 +1021,14 @@ export function registerBrainTools(context: vscode.ExtensionContext): void {
     lm.registerTool("whytcard-brain_logSession", new LogSessionTool()),
     lm.registerTool("whytcard-brain_initProject", new InitProjectTool()),
     lm.registerTool("whytcard-brain_analyzeError", new AnalyzeErrorTool()),
+    lm.registerTool("whytcard-brain_validate", new ValidateTool()),
     lm.registerTool("whytcard-brain_templateSearch", new TemplateSearchTool()),
     lm.registerTool("whytcard-brain_templateSave", new TemplateSaveTool()),
     lm.registerTool("whytcard-brain_templateApply", new TemplateApplyTool()),
   );
 
   console.log(
-    "Brain LM tools registered (12 tools) - Copilot peut maintenant les utiliser automatiquement",
+    "Brain LM tools registered (13 tools) - Copilot peut maintenant les utiliser automatiquement",
   );
 }
 

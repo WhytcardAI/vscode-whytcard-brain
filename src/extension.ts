@@ -40,6 +40,7 @@ import {
   type BrainInstructionConfig,
 } from "./utils/copilotUtils";
 import { buildDeduplicateDocsPlan } from "./utils/deduplicateDocs";
+import { BrainSettingsViewProvider } from "./views/settingsView";
 import { BrainWebviewPanel } from "./views/webviewPanel";
 
 let statusBarItem: vscode.StatusBarItem;
@@ -106,11 +107,13 @@ function setupRulesWatchers(context: vscode.ExtensionContext): void {
     const windsurfPattern = new vscode.RelativePattern(folder, ".windsurf/rules/brain.md");
     const cursorPattern = new vscode.RelativePattern(folder, ".cursor/rules/brain.mdc");
     const copilotPattern = new vscode.RelativePattern(folder, ".github/copilot-instructions.md");
+    const agentsPattern = new vscode.RelativePattern(folder, "AGENTS.md");
 
     const watchers = [
       vscode.workspace.createFileSystemWatcher(windsurfPattern),
       vscode.workspace.createFileSystemWatcher(cursorPattern),
       vscode.workspace.createFileSystemWatcher(copilotPattern),
+      vscode.workspace.createFileSystemWatcher(agentsPattern),
     ];
 
     for (const watcher of watchers) {
@@ -140,6 +143,27 @@ function resolveDbPathFromMcpConfig(): string | null {
   // Prefer reading the same DB path used by the MCP server so the UI reflects
   // what the agent writes via brainSave/brainBug/etc.
   const home = os.homedir();
+
+  // If user configured an explicit MCP config path, use it first.
+  try {
+    const override = vscode.workspace
+      .getConfiguration("whytcard-brain")
+      .get<string>("mcpConfigPathOverride", "")
+      .trim();
+    if (override) {
+      const config = tryReadJsonFile<Record<string, unknown>>(override);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const servers = (config as any)?.mcpServers;
+      const dbPath =
+        servers?.["whytcard-brain"]?.env?.BRAIN_DB_PATH ??
+        servers?.whytcardBrain?.env?.BRAIN_DB_PATH;
+      if (typeof dbPath === "string" && dbPath.trim().endsWith(".db")) {
+        return dbPath.trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
 
   const candidates = [
     // Cursor (observed in the wild)
@@ -191,6 +215,10 @@ export async function activate(context: vscode.ExtensionContext) {
   console.log("Brain storage path:", storagePath);
 
   const service = getBrainService();
+
+  // ====== MCP SETUP SERVICE ======
+  // Available for Settings UI even before DB connection.
+  mcpSetupService = new McpSetupService(context);
 
   // Document Provider for brain:// URIs
   const brainDocProvider = new BrainDocumentProvider();
@@ -265,6 +293,27 @@ export async function activate(context: vscode.ExtensionContext) {
     treeDataProvider: statsProvider,
     showCollapseAll: false,
   });
+
+  // ====== SETTINGS (SIDEBAR UI) ======
+  const settingsViewProvider = new BrainSettingsViewProvider(context.extensionUri, {
+    applyInstructionFiles: async () => {
+      await autoSetupAllEditorInstructions();
+    },
+    setupMcp: async () => {
+      return mcpSetupService.setupMcpServer();
+    },
+    getMcpStatus: async () => {
+      return mcpSetupService.getMcpStatus();
+    },
+  });
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      BrainSettingsViewProvider.viewType,
+      settingsViewProvider,
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
+  );
 
   // Status bar
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -345,10 +394,6 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   console.log("Database connected successfully!");
-
-  // ====== MCP SETUP SERVICE ======
-  // Initialize MCP setup service
-  mcpSetupService = new McpSetupService(context);
 
   // Check and prompt for MCP configuration if needed
   setTimeout(() => {
@@ -1100,70 +1145,6 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }),
 
-    // Installer les instructions Copilot (sans @brain) dans le workspace
-    vscode.commands.registerCommand("whytcard-brain.installCopilotInstructions", async () => {
-      const folder = await pickWorkspaceFolder();
-      if (!folder) {
-        return;
-      }
-
-      const res = await ensureCopilotInstructionsForFolder(folder);
-      await tryEnableCopilotInstructionFiles(folder);
-      if (res.instructionsUri) {
-        await openFile(res.instructionsUri);
-      }
-
-      if (res.updated) {
-        vscode.window.showInformationMessage(
-          "Copilot instructions mises à jour. Copilot Chat devrait consulter Brain automatiquement.",
-        );
-      } else {
-        vscode.window.showInformationMessage(
-          "Copilot instructions déjà présentes. Copilot Chat devrait consulter Brain automatiquement.",
-        );
-      }
-    }),
-
-    // Configure MCP Server
-    vscode.commands.registerCommand("whytcard-brain.setupMcp", async () => {
-      const result = await mcpSetupService.setupMcpServer();
-
-      if (result.success) {
-        vscode.window.showInformationMessage(result.message, "Restart Now").then((selection) => {
-          if (selection === "Restart Now") {
-            vscode.commands.executeCommand("workbench.action.reloadWindow");
-          }
-        });
-      } else {
-        vscode.window.showErrorMessage(result.message);
-      }
-    }),
-
-    // Show MCP Status
-    vscode.commands.registerCommand("whytcard-brain.mcpStatus", async () => {
-      const status = await mcpSetupService.getMcpStatus();
-
-      const message = [
-        `Environment: ${status.environment}`,
-        `MCP Supported: ${status.supported ? "Yes" : "No"}`,
-        `Configured: ${status.configured ? "Yes" : "No"}`,
-        status.configPath ? `Config: ${status.configPath}` : "",
-        `Database: ${status.dbPath}`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      if (status.supported && !status.configured) {
-        vscode.window.showInformationMessage(message, "Configure Now").then((selection) => {
-          if (selection === "Configure Now") {
-            vscode.commands.executeCommand("whytcard-brain.setupMcp");
-          }
-        });
-      } else {
-        vscode.window.showInformationMessage(message);
-      }
-    }),
-
     // View Template
     vscode.commands.registerCommand("whytcard-brain.viewTemplate", (item: TemplateTreeItem) => {
       if (item.templateData) {
@@ -1325,6 +1306,11 @@ export async function activate(context: vscode.ExtensionContext) {
         const copilotUri = vscode.Uri.joinPath(folder.uri, ".github", "copilot-instructions.md");
         if (await uriExists(copilotUri)) {
           rulesFound.push(`✅ VS Code/Copilot: ${folder.name}/.github/copilot-instructions.md`);
+        }
+        // Check Agents
+        const agentsUri = vscode.Uri.joinPath(folder.uri, "AGENTS.md");
+        if (await uriExists(agentsUri)) {
+          rulesFound.push(`✅ VS Code Agents: ${folder.name}/AGENTS.md`);
         }
         // Check Cursor (new format v0.45+)
         const cursorNewUri = vscode.Uri.joinPath(folder.uri, ".cursor", "rules", "brain.mdc");
@@ -1560,9 +1546,26 @@ async function openFile(uri: vscode.Uri): Promise<void> {
  * Auto-setup instructions for ALL editors (VS Code/Copilot, Cursor, Windsurf)
  */
 async function autoSetupAllEditorInstructions(): Promise<void> {
-  const autoInstallCopilot = vscode.workspace
-    .getConfiguration()
-    .get<boolean>("whytcard-brain.autoInstallCopilotInstructions", true);
+  const config = vscode.workspace.getConfiguration("whytcard-brain");
+  const autoInstallInstructionFiles = config.get<boolean>("autoInstallCopilotInstructions", true);
+  const targets = config.get<{
+    agentsMd?: boolean;
+    copilotInstructions?: boolean;
+    cursorRules?: boolean;
+    windsurfRules?: boolean;
+  }>("instructionTargets", {
+    agentsMd: true,
+    copilotInstructions: true,
+    cursorRules: true,
+    windsurfRules: true,
+  });
+
+  const resolvedTargets = {
+    agentsMd: targets.agentsMd ?? true,
+    copilotInstructions: targets.copilotInstructions ?? true,
+    cursorRules: targets.cursorRules ?? true,
+    windsurfRules: targets.windsurfRules ?? true,
+  };
 
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -1570,8 +1573,21 @@ async function autoSetupAllEditorInstructions(): Promise<void> {
   }
 
   for (const folder of folders) {
+    if (!autoInstallInstructionFiles) {
+      continue;
+    }
+
+    // VS Code Agents (AGENTS.md)
+    if (resolvedTargets.agentsMd) {
+      try {
+        await ensureAgentsMdForFolder(folder);
+      } catch (err) {
+        console.warn("WhytCard Brain: failed Agents setup for", folder.uri.fsPath, err);
+      }
+    }
+
     // VS Code / GitHub Copilot (.github/copilot-instructions.md)
-    if (autoInstallCopilot && isCopilotAvailable()) {
+    if (resolvedTargets.copilotInstructions && isCopilotAvailable()) {
       try {
         await ensureCopilotInstructionsForFolder(folder);
       } catch (err) {
@@ -1580,31 +1596,47 @@ async function autoSetupAllEditorInstructions(): Promise<void> {
     }
 
     // Cursor (.cursorrules)
-    try {
-      await ensureCursorRulesForFolder(folder);
-    } catch (err) {
-      console.warn("WhytCard Brain: failed Cursor setup for", folder.uri.fsPath, err);
+    if (resolvedTargets.cursorRules) {
+      try {
+        await ensureCursorRulesForFolder(folder);
+      } catch (err) {
+        console.warn("WhytCard Brain: failed Cursor setup for", folder.uri.fsPath, err);
+      }
     }
 
     // Windsurf (.windsurf/rules/brain.md)
-    try {
-      await ensureWindsurfRulesForFolder(folder);
-    } catch (err) {
-      console.warn("WhytCard Brain: failed Windsurf setup for", folder.uri.fsPath, err);
+    if (resolvedTargets.windsurfRules) {
+      try {
+        await ensureWindsurfRulesForFolder(folder);
+      } catch (err) {
+        console.warn("WhytCard Brain: failed Windsurf setup for", folder.uri.fsPath, err);
+      }
     }
   }
 
   // Enable Copilot instruction files setting
-  const autoEnable = vscode.workspace
-    .getConfiguration()
-    .get<boolean>("whytcard-brain.autoEnableCopilotInstructionFiles", true);
+  if (!autoInstallInstructionFiles) {
+    return;
+  }
 
-  if (autoInstallCopilot && autoEnable && isCopilotAvailable()) {
+  const autoEnableAgents = config.get<boolean>("autoEnableAgentsMdFile", true);
+  if (resolvedTargets.agentsMd && autoEnableAgents) {
+    for (const folder of folders) {
+      try {
+        await tryEnableAgentsMdFile(folder);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const autoEnableCopilot = config.get<boolean>("autoEnableCopilotInstructionFiles", true);
+  if (resolvedTargets.copilotInstructions && autoEnableCopilot && isCopilotAvailable()) {
     for (const folder of folders) {
       try {
         await tryEnableCopilotInstructionFiles(folder);
       } catch {
-        // Ignore errors for individual folders
+        // Ignore config update errors for individual folders
       }
     }
   }
@@ -1699,6 +1731,19 @@ async function tryEnableCopilotInstructionFiles(folder: vscode.WorkspaceFolder):
   }
 }
 
+async function tryEnableAgentsMdFile(folder: vscode.WorkspaceFolder): Promise<void> {
+  try {
+    const config = vscode.workspace.getConfiguration("chat", folder.uri);
+    const target =
+      (vscode.workspace.workspaceFolders?.length ?? 0) > 1
+        ? vscode.ConfigurationTarget.WorkspaceFolder
+        : vscode.ConfigurationTarget.Workspace;
+    await config.update("useAgentsMdFile", true, target);
+  } catch {
+    // Ignore config update errors
+  }
+}
+
 async function ensureCopilotInstructionsForFolder(folder: vscode.WorkspaceFolder): Promise<{
   updated: boolean;
   instructionsUri?: vscode.Uri;
@@ -1725,6 +1770,26 @@ async function ensureCopilotInstructionsForFolder(folder: vscode.WorkspaceFolder
 
   await vscode.workspace.fs.writeFile(instructionsUri, Buffer.from(merged.content, "utf8"));
   return { updated: true, instructionsUri };
+}
+
+async function ensureAgentsMdForFolder(folder: vscode.WorkspaceFolder): Promise<void> {
+  const agentsUri = vscode.Uri.joinPath(folder.uri, "AGENTS.md");
+  const exists = await uriExists(agentsUri);
+  const brainBlock = buildCopilotInstructionsContent(getBrainConfig());
+
+  if (!exists) {
+    await vscode.workspace.fs.writeFile(agentsUri, Buffer.from(brainBlock, "utf8"));
+    console.log("WhytCard Brain: created AGENTS.md for", folder.name);
+    return;
+  }
+
+  const current = await readTextFile(agentsUri);
+  const merged = mergeBrainInstructionsBlock(current, brainBlock);
+
+  if (merged.changed) {
+    await vscode.workspace.fs.writeFile(agentsUri, Buffer.from(merged.content, "utf8"));
+    console.log("WhytCard Brain: updated AGENTS.md for", folder.name);
+  }
 }
 
 async function readTextFile(uri: vscode.Uri): Promise<string> {

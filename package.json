@@ -499,6 +499,32 @@
             "name"
           ]
         }
+      },
+      {
+        "name": "whytcard-brain_validate",
+        "tags": [
+          "validate",
+          "policy",
+          "brain"
+        ],
+        "displayName": "Validate Answer",
+        "toolReferenceName": "brainValidate",
+        "modelDescription": "Validate a draft answer/plan against Brain policy (no speculation, grounded in Brain docs).",
+        "userDescription": "Validate answer against Brain policy",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(check)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "draft": {
+              "type": "string",
+              "description": "Draft answer/plan to validate"
+            }
+          },
+          "required": [
+            "draft"
+          ]
+        }
       }
     ],
     "viewsContainers": {
@@ -536,6 +562,12 @@
           "id": "whytcard-brain.stats",
           "name": "Stats",
           "icon": "media/brain.svg"
+        },
+        {
+          "id": "whytcard-brain.settings",
+          "name": "Settings",
+          "type": "webview",
+          "icon": "media/brain.svg"
         }
       ]
     },
@@ -544,24 +576,6 @@
         "command": "whytcard-brain.refresh",
         "title": "Refresh",
         "icon": "$(refresh)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.setDocsSort",
-        "title": "Sort Docs…",
-        "icon": "$(sort-precedence)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.setDocClickAction",
-        "title": "Doc Click Action…",
-        "icon": "$(mouse)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.installCopilotInstructions",
-        "title": "Install Copilot Chat Instructions",
-        "icon": "$(copilot)",
         "category": "Brain"
       },
       {
@@ -619,18 +633,6 @@
         "category": "Brain"
       },
       {
-        "command": "whytcard-brain.setupMcp",
-        "title": "Configure MCP Server (Windsurf/Cursor)",
-        "icon": "$(server)",
-        "category": "Brain"
-      },
-      {
-        "command": "whytcard-brain.mcpStatus",
-        "title": "Show MCP Status",
-        "icon": "$(info)",
-        "category": "Brain"
-      },
-      {
         "command": "whytcard-brain.openWalkthrough",
         "title": "Getting Started Guide",
         "icon": "$(book)",
@@ -648,16 +650,6 @@
         {
           "command": "whytcard-brain.refresh",
           "when": "view =~ /whytcard-brain\\./",
-          "group": "navigation"
-        },
-        {
-          "command": "whytcard-brain.setDocsSort",
-          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/",
-          "group": "navigation"
-        },
-        {
-          "command": "whytcard-brain.setDocClickAction",
-          "when": "view =~ /whytcard-brain\\.(instructions|documentation|context)/",
           "group": "navigation"
         },
         {
@@ -763,7 +755,7 @@
           {
             "id": "mcpSetup",
             "title": "Setup for Cursor/Windsurf",
-            "description": "If you use **Cursor** or **Windsurf**, run the MCP setup:\n\n[Configure MCP Server](command:whytcard-brain.setupMcp)\n\nOr use the command line:\n```\nnpm run setup:cursor\nnpm run setup:windsurf\n```",
+            "description": "If you use **Cursor** or **Windsurf**, configure MCP from the Brain sidebar:\n\n1) Open the Brain panel\n2) Go to **Settings**\n3) Click **Run MCP setup**\n\nOr use the command line:\n```\nnpm run setup:cursor\nnpm run setup:windsurf\n```",
             "media": {
               "image": "media/icon.png",
               "altText": "Brain icon"
@@ -803,6 +795,63 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically enable github.copilot.chat.codeGeneration.useInstructionFiles for the workspace."
+        },
+        "whytcard-brain.autoEnableAgentsMdFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically enable chat.useAgentsMdFile for the workspace."
+        },
+        "whytcard-brain.instructionTargets": {
+          "type": "object",
+          "default": {
+            "agentsMd": true,
+            "copilotInstructions": true,
+            "cursorRules": true,
+            "windsurfRules": true
+          },
+          "description": "Select which instruction files are generated/updated by Brain.",
+          "properties": {
+            "agentsMd": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate/update AGENTS.md at workspace root."
+            },
+            "copilotInstructions": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate/update .github/copilot-instructions.md (Copilot)."
+            },
+            "cursorRules": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate/update .cursor/rules/brain.mdc (Cursor)."
+            },
+            "windsurfRules": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate/update .windsurf/rules/brain.md (Windsurf)."
+            }
+          }
+        },
+        "whytcard-brain.mcpEnvironment": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "cursor",
+            "windsurf"
+          ],
+          "default": "auto",
+          "description": "Which environment to configure MCP for (allows configuring Cursor/Windsurf MCP from VS Code)."
+        },
+        "whytcard-brain.mcpConfigPathOverride": {
+          "type": "string",
+          "default": "",
+          "description": "Override MCP config path (advanced)."
+        },
+        "whytcard-brain.mcpDbPathOverride": {
+          "type": "string",
+          "default": "",
+          "description": "Override BRAIN_DB_PATH written into MCP config (advanced)."
         },
         "whytcard-brain.strictMode": {
           "type": "string",
@@ -856,59 +905,83 @@
         "whytcard-brain.enabledTools": {
           "type": "object",
           "default": {
-            "brainConsult": true,
-            "brainSave": true,
-            "brainBug": true,
-            "brainSession": true,
-            "brainSearch": true,
-            "brainValidate": true,
-            "brainTemplateSave": true,
-            "brainTemplateSearch": true,
-            "brainTemplateApply": true
+            "consult": true,
+            "getInstructions": true,
+            "getContext": true,
+            "searchDocs": true,
+            "storeDoc": true,
+            "storePitfall": true,
+            "logSession": true,
+            "initProject": true,
+            "analyzeError": true,
+            "validate": true,
+            "templateSearch": true,
+            "templateSave": true,
+            "templateApply": true
           },
           "description": "Enable/disable individual Brain tools.",
           "properties": {
-            "brainConsult": {
+            "consult": {
               "type": "boolean",
               "default": true,
-              "description": "Load instructions + context + search docs"
+              "description": "Load instructions + context + search docs (primary tool)"
             },
-            "brainSave": {
+            "getInstructions": {
+              "type": "boolean",
+              "default": true,
+              "description": "Load mandatory instructions only"
+            },
+            "getContext": {
+              "type": "boolean",
+              "default": true,
+              "description": "Load project context only"
+            },
+            "searchDocs": {
+              "type": "boolean",
+              "default": true,
+              "description": "Search documentation and pitfalls"
+            },
+            "storeDoc": {
               "type": "boolean",
               "default": true,
               "description": "Save new documentation"
             },
-            "brainBug": {
+            "storePitfall": {
               "type": "boolean",
               "default": true,
               "description": "Save bug/error solutions"
             },
-            "brainSession": {
+            "logSession": {
               "type": "boolean",
               "default": true,
               "description": "Log work sessions"
             },
-            "brainSearch": {
+            "initProject": {
               "type": "boolean",
               "default": true,
-              "description": "Search documentation"
+              "description": "Initialize Brain for a project"
             },
-            "brainValidate": {
+            "analyzeError": {
               "type": "boolean",
               "default": true,
-              "description": "Validate answers against Brain"
+              "description": "Check if error is known in Brain"
             },
-            "brainTemplateSave": {
+            "validate": {
               "type": "boolean",
               "default": true,
-              "description": "Save code templates"
+              "description": "Validate answers against Brain policy"
             },
-            "brainTemplateSearch": {
+            "templateSearch": {
               "type": "boolean",
               "default": true,
               "description": "Search code templates"
             },
-            "brainTemplateApply": {
+            "templateSave": {
+              "type": "boolean",
+              "default": true,
+              "description": "Save code templates"
+            },
+            "templateApply": {
               "type": "boolean",
               "default": true,
               "description": "Apply code templates"
@@ -951,6 +1024,7 @@
   "scripts": {
     "vscode:prepublish": "npm run build",
     "build": "node scripts/build.js",
+    "build:settings-ui": "vite build --config src/webviews/settings-ui/vite.config.ts",
     "build:mcp": "esbuild src/mcp-server.ts --bundle --outfile=dist/mcp-server.js --format=esm --platform=node --target=node18 --banner:js=\"#!/usr/bin/env node\"",
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "test": "mocha -r ts-node/register src/test/unit/**/*.test.ts",
@@ -967,19 +1041,25 @@
     "regenerate:instructions": "node scripts/regenerate-instructions.js"
   },
   "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@eslint/js": "^9.39.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.10.0",
     "@types/sql.js": "^1.4.9",
     "@types/vscode": "^1.85.0",
+    "@vitejs/plugin-react": "^4.2.0",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "mocha": "^11.7.5",
     "prettier": "^3.7.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "sharp": "^0.34.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.2",
-    "typescript-eslint": "^8.50.1"
+    "typescript-eslint": "^8.50.1",
+    "vite": "^5.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

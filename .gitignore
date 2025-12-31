@@ -18,3 +18,20 @@ mcp-smoke-stderr.txt
 # OS/editor noise
 .DS_Store
 Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# MCP server distribution (built)
+mcp-server/dist/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Test coverage
+coverage/
+.nyc_output/

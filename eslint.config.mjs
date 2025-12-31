@@ -10,6 +10,7 @@ export default tseslint.config(
       "node_modules/**",
       "mcp-server/dist/**",
       "scripts/**",
+      "src/webviews/**",
       "*.js",
     ],
   },

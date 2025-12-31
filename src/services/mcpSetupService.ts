@@ -1,8 +1,8 @@
-import * as vscode from "vscode";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
 import { execSync } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import * as vscode from "vscode";
 
 interface McpServerConfig {
   command: string;
@@ -40,11 +40,38 @@ export class McpSetupService {
     return "unknown";
   }
 
+  private getSelectedMcpEnvironment(): "auto" | "windsurf" | "cursor" {
+    const cfg = vscode.workspace.getConfiguration("whytcard-brain");
+    const value = cfg.get<string>("mcpEnvironment", "auto");
+    if (value === "cursor" || value === "windsurf" || value === "auto") {
+      return value;
+    }
+    return "auto";
+  }
+
+  private resolveMcpEnvironment(): "vscode" | "windsurf" | "cursor" | "unknown" {
+    const selected = this.getSelectedMcpEnvironment();
+    if (selected === "cursor" || selected === "windsurf") {
+      return selected;
+    }
+    return this.detectEnvironment();
+  }
+
   /**
    * Retourne le chemin du fichier mcp_config.json selon l'environnement
    */
   private getMcpConfigPath(): string | null {
-    const env = this.detectEnvironment();
+    const cfg = vscode.workspace.getConfiguration("whytcard-brain");
+    const override = cfg.get<string>("mcpConfigPathOverride", "").trim();
+    if (override) {
+      const dir = path.dirname(override);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      return override;
+    }
+
+    const env = this.resolveMcpEnvironment();
     const homeDir = os.homedir();
 
     switch (env) {
@@ -100,7 +127,13 @@ export class McpSetupService {
    * Retourne le chemin de la base de données selon l'environnement
    */
   private getDbPath(): string {
-    const env = this.detectEnvironment();
+    const cfg = vscode.workspace.getConfiguration("whytcard-brain");
+    const override = cfg.get<string>("mcpDbPathOverride", "").trim();
+    if (override) {
+      return override;
+    }
+
+    const env = this.resolveMcpEnvironment();
     const home = os.homedir();
     const platform = process.platform;
 
@@ -164,7 +197,7 @@ export class McpSetupService {
    * Configure automatiquement le MCP server
    */
   async setupMcpServer(): Promise<{ success: boolean; message: string }> {
-    const env = this.detectEnvironment();
+    const env = this.resolveMcpEnvironment();
 
     if (env === "vscode") {
       return {
@@ -300,7 +333,7 @@ export class McpSetupService {
    * Affiche une notification pour configurer le MCP
    */
   async promptMcpSetup(): Promise<void> {
-    const env = this.detectEnvironment();
+    const env = this.resolveMcpEnvironment();
 
     if (env === "vscode") {
       // VS Code n'a pas besoin de MCP
@@ -320,7 +353,11 @@ export class McpSetupService {
     );
 
     if (action === "Configure Now") {
-      await vscode.commands.executeCommand("whytcard-brain.setupMcp");
+      // UI-only: guide user to the Brain Settings view (no Command Palette flow)
+      await vscode.commands.executeCommand("workbench.view.extension.whytcard-brain");
+      vscode.window.showInformationMessage(
+        "Open Brain → Settings and click 'Run MCP setup' to configure MCP.",
+      );
     } else if (action === "Don't Show Again") {
       await this.context.globalState.update("mcpSetupDismissed", true);
     }
@@ -343,7 +380,7 @@ export class McpSetupService {
     configPath: string | null;
     dbPath: string;
   }> {
-    const env = this.detectEnvironment();
+    const env = this.resolveMcpEnvironment();
     const mcpConfigPath = this.getMcpConfigPath();
     const configured = await this.isMcpConfigured();
 

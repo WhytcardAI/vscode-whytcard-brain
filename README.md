@@ -12,16 +12,18 @@ WhytCard Brain registers **Language Model Tools** that Copilot automatically use
 
 | Tool                   | Description                                  |
 | ---------------------- | -------------------------------------------- |
+| `#brainConsult`        | Load instructions + context + local docs     |
 | `#brainInstructions`   | Load mandatory project rules and conventions |
 | `#brainContext`        | Load project architecture and decisions      |
 | `#brain`               | Search documentation and known solutions     |
-| `#brainConsult`        | Load instructions + context + local docs     |
 | `#brainSave`           | Store new documentation locally              |
 | `#brainBug`            | Record bugs and their solutions              |
 | `#brainSession`        | Log session summaries for continuity         |
+| `#brainInit`           | Analyze project and generate init plan       |
+| `#brainDebug`          | Check if an error is known in Brain          |
 | `#brainValidate`       | Validate answers are grounded in sources     |
-| `#brainTemplateSave`   | Save reusable code/templates (agent-driven)  |
 | `#brainTemplateSearch` | Search saved templates                       |
+| `#brainTemplateSave`   | Save reusable code/templates (agent-driven)  |
 | `#brainTemplateApply`  | Apply a template (for reuse)                 |
 
 ### 📚 Organized Knowledge

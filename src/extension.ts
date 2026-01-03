@@ -1501,33 +1501,6 @@ function setupDbWatcher(dbPath: string, onChangeCallback: () => void): void {
   }
 }
 
-async function pickWorkspaceFolder(): Promise<vscode.WorkspaceFolder | undefined> {
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders || folders.length === 0) {
-    vscode.window.showErrorMessage(
-      "Aucun workspace ouvert. Ouvrez un dossier/projet pour installer .github/copilot-instructions.md",
-    );
-    return undefined;
-  }
-
-  if (folders.length === 1) {
-    return folders[0];
-  }
-
-  const picked = await vscode.window.showQuickPick(
-    folders.map((f) => ({
-      label: f.name,
-      description: f.uri.fsPath,
-      folder: f,
-    })),
-    {
-      placeHolder: "Choisir le dossier du workspace où installer les instructions Copilot",
-    },
-  );
-
-  return picked?.folder;
-}
-
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
   try {
     await vscode.workspace.fs.stat(uri);
@@ -1535,11 +1508,6 @@ async function uriExists(uri: vscode.Uri): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function openFile(uri: vscode.Uri): Promise<void> {
-  const doc = await vscode.workspace.openTextDocument(uri);
-  await vscode.window.showTextDocument(doc, { preview: false });
 }
 
 /**

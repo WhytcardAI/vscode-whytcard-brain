@@ -8,6 +8,211 @@ import { getBrainService, trackError, trackUsage } from "../services/brainServic
 import { DiagnosticsService } from "../services/diagnosticsService";
 import { ProjectInitService } from "../services/projectInitService";
 
+// =====================
+// Session State & Strict Policy Enforcement
+// =====================
+
+/**
+ * Session state tracking for consult enforcement.
+ * Mirrors the MCP server logic from src/mcp-server.ts.
+ */
+const sessionState: {
+  consultedAtMs: number | null;
+  lastConsultQuery: string | null;
+  lastConsultDocsCount: number;
+  lastConsultDocsWithUrlCount: number;
+} = {
+  consultedAtMs: null,
+  lastConsultQuery: null,
+  lastConsultDocsCount: 0,
+  lastConsultDocsWithUrlCount: 0,
+};
+
+/** Default TTL for consult validity: 20 minutes */
+const DEFAULT_CONSULT_TTL_MS = 20 * 60 * 1000;
+
+/**
+ * Get strictMode setting from VS Code configuration.
+ * @returns "off" | "moderate" | "strict"
+ */
+function getStrictModeSetting(): "off" | "moderate" | "strict" {
+  const config = vscode.workspace.getConfiguration("whytcard-brain");
+  const mode = config.get<string>("strictMode", "moderate");
+  if (mode === "off" || mode === "moderate" || mode === "strict") {
+    return mode;
+  }
+  return "moderate";
+}
+
+/**
+ * Check if strict mode is enabled (moderate or strict).
+ */
+function isStrictModeEnabled(): boolean {
+  return getStrictModeSetting() !== "off";
+}
+
+/**
+ * Check if strict sources (URLs) are required.
+ * Only in "strict" mode.
+ */
+function isStrictSourcesRequired(): boolean {
+  return getStrictModeSetting() === "strict";
+}
+
+/**
+ * Check if consult enforcement is active.
+ * Enabled when strictMode is not "off".
+ */
+function isConsultEnforced(): boolean {
+  return isStrictModeEnabled();
+}
+
+/**
+ * Get consult TTL in milliseconds.
+ */
+function getConsultTtlMs(): number {
+  return DEFAULT_CONSULT_TTL_MS;
+}
+
+/**
+ * Clear the consult state.
+ */
+function clearConsultState(): void {
+  sessionState.consultedAtMs = null;
+  sessionState.lastConsultQuery = null;
+  sessionState.lastConsultDocsCount = 0;
+  sessionState.lastConsultDocsWithUrlCount = 0;
+}
+
+/**
+ * Check if a recent consult exists (within TTL).
+ */
+function hasFreshConsult(nowMs: number): boolean {
+  if (sessionState.consultedAtMs === null) {
+    return false;
+  }
+  return nowMs - sessionState.consultedAtMs <= getConsultTtlMs();
+}
+
+/**
+ * Check if consult is satisfied (fresh + strict requirements met).
+ */
+function hasSatisfiedConsult(nowMs: number): boolean {
+  if (!hasFreshConsult(nowMs)) {
+    return false;
+  }
+
+  if (!isStrictModeEnabled()) {
+    return true;
+  }
+
+  // In moderate/strict mode, require at least one doc
+  if (sessionState.lastConsultDocsCount <= 0) {
+    return false;
+  }
+
+  // In strict mode, require at least one doc with URL
+  if (isStrictSourcesRequired() && sessionState.lastConsultDocsWithUrlCount <= 0) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Generate error result when consult is required but not satisfied.
+ */
+function consultRequiredResult(toolName: string): vscode.LanguageModelToolResult {
+  // Track policy enforcement blocks for diagnostics
+  trackUsage("policyBlockCount");
+
+  const ttlMinutes = Math.max(1, Math.round(getConsultTtlMs() / 60000));
+  const mode = getStrictModeSetting();
+  const strictHint =
+    mode !== "off"
+      ? `\n\nStrict mode (${mode}): brainConsult must return at least one documentation entry` +
+        `${mode === "strict" ? " with a source URL" : ""}. ` +
+        `If none, fetch official docs (Context7/Tavily), store them with brainSave (include url), then retry brainConsult.`
+      : "";
+
+  return new vscode.LanguageModelToolResult([
+    new vscode.LanguageModelTextPart(
+      `❌ Brain policy: call brainConsult before using "${toolName}".\n\n` +
+        `Call brainConsult with the user's request as query, then retry.\n` +
+        `(brainConsult is required at least once every ~${ttlMinutes} minutes.)` +
+        strictHint,
+    ),
+  ]);
+}
+
+type ConsultRequirement = "fresh" | "satisfied";
+
+/**
+ * Wraps a LanguageModelTool with consult enforcement.
+ * The wrapped tool will check if a recent and satisfactory consult has been made
+ * before allowing the tool to execute.
+ * @param toolName Name of the tool (for error messages)
+ * @param tool The original tool instance
+ * @param requirement "fresh" (just needs recent consult) or "satisfied" (needs docs found)
+ */
+function wrapToolWithEnforcement<TInput>(
+  toolName: string,
+  tool: vscode.LanguageModelTool<TInput>,
+  requirement: ConsultRequirement = "satisfied",
+): vscode.LanguageModelTool<TInput> {
+  const originalInvoke = tool.invoke.bind(tool);
+
+  return {
+    invoke: async (
+      options: vscode.LanguageModelToolInvocationOptions<TInput>,
+      token: vscode.CancellationToken,
+    ): Promise<vscode.LanguageModelToolResult> => {
+      if (!isConsultEnforced()) {
+        const result = await originalInvoke(options, token);
+        return result ?? new vscode.LanguageModelToolResult([]);
+      }
+
+      const nowMs = Date.now();
+      const ok = requirement === "fresh" ? hasFreshConsult(nowMs) : hasSatisfiedConsult(nowMs);
+      if (!ok) {
+        return consultRequiredResult(toolName);
+      }
+
+      const result = await originalInvoke(options, token);
+      return result ?? new vscode.LanguageModelToolResult([]);
+    },
+    prepareInvocation: tool.prepareInvocation?.bind(tool),
+  };
+}
+
+/**
+ * Export for testing: reset consult state
+ */
+export function resetConsultState(): void {
+  clearConsultState();
+}
+
+/**
+ * Export for debugging: get current consult state
+ */
+export function getConsultStateInfo(): {
+  consultedAtMs: number | null;
+  lastConsultQuery: string | null;
+  lastConsultDocsCount: number;
+  lastConsultDocsWithUrlCount: number;
+  isFresh: boolean;
+  isSatisfied: boolean;
+  strictMode: "off" | "moderate" | "strict";
+} {
+  const nowMs = Date.now();
+  return {
+    ...sessionState,
+    isFresh: hasFreshConsult(nowMs),
+    isSatisfied: hasSatisfiedConsult(nowMs),
+    strictMode: getStrictModeSetting(),
+  };
+}
+
 // Interfaces pour les inputs des outils
 interface SearchDocsInput {
   query: string;
@@ -350,6 +555,8 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
       const docsAll = service.searchDocs(query, library, category);
       const pitfallsAll = service.searchPitfalls(query);
 
+      const docsAllWithUrlCount = docsAll.filter((d) => !!d.url).length;
+
       // If we already included instructions, avoid returning instruction docs again unless user explicitly asked.
       const docs =
         includeInstr && !category
@@ -402,6 +609,33 @@ class ConsultTool implements vscode.LanguageModelTool<ConsultInput> {
 
       result += `> Hint: If nothing is found locally, use Context7/Tavily and then save via #brainSave.\n`;
 
+      // Record consultation state for strict policy enforcement
+      // Use docsAll (before filtering) for count, as we want to know total docs found
+      sessionState.consultedAtMs = Date.now();
+      sessionState.lastConsultQuery = query;
+      sessionState.lastConsultDocsCount = docsAll.length;
+      sessionState.lastConsultDocsWithUrlCount = docsAllWithUrlCount;
+
+      if (getStrictModeSetting() === "strict") {
+        const issues: string[] = [];
+        if (docsAll.length === 0) {
+          issues.push("No relevant documentation found in Brain for this query.");
+        }
+        if (docsAll.length > 0 && docsAllWithUrlCount === 0) {
+          issues.push("Documentation exists but has no stored source URLs.");
+        }
+
+        if (issues.length > 0) {
+          const header =
+            "## ❌ Strict Brain policy blocked\n\n" +
+            issues.map((i) => `- ${i}`).join("\n") +
+            "\n\nNext: fetch OFFICIAL docs (Context7/Tavily), then store them with brainSave (include url), then retry brainConsult.\n\n---\n\n";
+          return new vscode.LanguageModelToolResult([
+            new vscode.LanguageModelTextPart(`${header}${result}`),
+          ]);
+        }
+      }
+
       return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result)]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : "Unknown error";
@@ -433,6 +667,17 @@ class StoreDocTool implements vscode.LanguageModelTool<StoreDocInput> {
     try {
       trackUsage("storeDocCount");
       const { library, topic, title, content, url, category } = options.input;
+
+      // Strict mode: require URL for documentation storage
+      if (isStrictModeEnabled() && isStrictSourcesRequired() && !url) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            `❌ Strict Brain policy: brainSave requires a source URL.\n` +
+              `Provide \`url\` (official documentation link) and retry.`,
+          ),
+        ]);
+      }
+
       const service = getBrainService();
 
       const id = service.upsertDoc({
@@ -1003,7 +1248,8 @@ class TemplateApplyTool implements vscode.LanguageModelTool<TemplateApplyInput> 
  * Enregistre tous les outils LM
  */
 export function registerBrainTools(context: vscode.ExtensionContext): void {
-  const lm = (vscode as any).lm as
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lm = (vscode as any).lm as  // eslint-disable-next-line @typescript-eslint/no-explicit-any
     | { registerTool?: (...args: any[]) => vscode.Disposable }
     | undefined;
   if (!lm || typeof lm.registerTool !== "function") {
@@ -1011,24 +1257,69 @@ export function registerBrainTools(context: vscode.ExtensionContext): void {
     return;
   }
 
+  // ConsultTool is NOT wrapped - it's the entry point that enables other tools
+  // All other tools are wrapped with enforcement to require consult first
   context.subscriptions.push(
-    lm.registerTool("whytcard-brain_getInstructions", new GetInstructionsTool()),
-    lm.registerTool("whytcard-brain_getContext", new GetContextTool()),
-    lm.registerTool("whytcard-brain_searchDocs", new SearchDocsTool()),
+    // Consult tool - no enforcement (this is the required first call)
     lm.registerTool("whytcard-brain_consult", new ConsultTool()),
-    lm.registerTool("whytcard-brain_storeDoc", new StoreDocTool()),
-    lm.registerTool("whytcard-brain_storePitfall", new StorePitfallTool()),
-    lm.registerTool("whytcard-brain_logSession", new LogSessionTool()),
-    lm.registerTool("whytcard-brain_initProject", new InitProjectTool()),
-    lm.registerTool("whytcard-brain_analyzeError", new AnalyzeErrorTool()),
-    lm.registerTool("whytcard-brain_validate", new ValidateTool()),
-    lm.registerTool("whytcard-brain_templateSearch", new TemplateSearchTool()),
-    lm.registerTool("whytcard-brain_templateSave", new TemplateSaveTool()),
-    lm.registerTool("whytcard-brain_templateApply", new TemplateApplyTool()),
+
+    // Read-only tools - require satisfied consult (docs found)
+    lm.registerTool(
+      "whytcard-brain_getInstructions",
+      wrapToolWithEnforcement("brainInstructions", new GetInstructionsTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_getContext",
+      wrapToolWithEnforcement("brainContext", new GetContextTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_searchDocs",
+      wrapToolWithEnforcement("brainSearch", new SearchDocsTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_analyzeError",
+      wrapToolWithEnforcement("brainDebug", new AnalyzeErrorTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_validate",
+      wrapToolWithEnforcement("brainValidate", new ValidateTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_initProject",
+      wrapToolWithEnforcement("brainInit", new InitProjectTool(), "fresh"),
+    ),
+
+    // Write tools - require satisfied consult
+    lm.registerTool(
+      "whytcard-brain_storeDoc",
+      wrapToolWithEnforcement("brainSave", new StoreDocTool(), "fresh"),
+    ),
+    lm.registerTool(
+      "whytcard-brain_storePitfall",
+      wrapToolWithEnforcement("brainBug", new StorePitfallTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_logSession",
+      wrapToolWithEnforcement("brainSession", new LogSessionTool()),
+    ),
+
+    // Template tools - require satisfied consult
+    lm.registerTool(
+      "whytcard-brain_templateSearch",
+      wrapToolWithEnforcement("brainTemplateSearch", new TemplateSearchTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_templateSave",
+      wrapToolWithEnforcement("brainTemplateSave", new TemplateSaveTool()),
+    ),
+    lm.registerTool(
+      "whytcard-brain_templateApply",
+      wrapToolWithEnforcement("brainTemplateApply", new TemplateApplyTool()),
+    ),
   );
 
   console.log(
-    "Brain LM tools registered (13 tools) - Copilot peut maintenant les utiliser automatiquement",
+    "Brain LM tools registered (13 tools with strict policy enforcement) - Copilot peut maintenant les utiliser automatiquement",
   );
 }
 

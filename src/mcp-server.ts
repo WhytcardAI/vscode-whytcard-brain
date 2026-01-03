@@ -957,7 +957,9 @@ async function main() {
 
   // Avoid overly-deep generic inference (TS2589) in @modelcontextprotocol/sdk typings.
   // Runtime behavior is unchanged; this only affects TypeScript checking.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const registerTool = (name: string, config: any, cb: any) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     server.registerTool(name, config as any, cb as any);
 
   // =====================

@@ -25,9 +25,10 @@ interface ChatResult extends vscode.ChatResult {
  * Register the @brain chat participant
  */
 export function registerBrainChatParticipant(_context: vscode.ExtensionContext): vscode.Disposable {
-  const chat = (vscode as any).chat as
-    | { createChatParticipant?: (...args: any[]) => any }
-    | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chat = (vscode as any)
+    .chat as // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { createChatParticipant?: (...args: any[]) => any } | undefined;
   if (!chat || typeof chat.createChatParticipant !== "function") {
     console.log(
       "Brain chat participant not available in this host. Skipping chat participant registration.",

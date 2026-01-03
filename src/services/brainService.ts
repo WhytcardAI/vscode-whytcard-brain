@@ -25,6 +25,9 @@ import {
   type BrainStats,
   inferDomain,
   normalizeForSearch,
+  buildSearchDocsQuery,
+  buildSearchPitfallsQuery,
+  buildSearchTemplatesQuery,
 } from "../core/brainDbCore";
 
 // SQL parameter types for type safety
@@ -37,6 +40,7 @@ export interface UsageStats {
   storePitfallCount: number;
   getInstructionsCount: number;
   getContextCount: number;
+  policyBlockCount: number;
   lastUsed: string | null;
   errors: string[];
 }
@@ -48,6 +52,7 @@ const usageStats: UsageStats = {
   storePitfallCount: 0,
   getInstructionsCount: 0,
   getContextCount: 0,
+  policyBlockCount: 0,
   lastUsed: null,
   errors: [],
 };
@@ -549,25 +554,8 @@ export class BrainService {
     if (!this.ensureConnection()) return [];
 
     try {
-      const likePattern = `%${query}%`;
-      let sql = `SELECT * FROM docs WHERE (title LIKE ? OR content LIKE ? OR topic LIKE ?)`;
-      const params: SqlParams = [likePattern, likePattern, likePattern];
-
-      if (library) {
-        // Match both raw library and a normalized view (removes dots/spaces, lowercases)
-        const normalized = normalizeForSearch(library);
-        sql += ` AND (library LIKE ? OR REPLACE(REPLACE(LOWER(library), '.', ''), ' ', '') LIKE ?)`;
-        params.push(`%${library}%`, `%${normalized}%`);
-      }
-
-      if (category) {
-        sql += ` AND category = ?`;
-        params.push(category);
-      }
-
-      sql += ` ORDER BY library, topic LIMIT 20`;
-
-      return this.query<Doc>(sql, params);
+      const { sql, sqlParams } = buildSearchDocsQuery({ query, library, category });
+      return this.query<Doc>(sql, sqlParams);
     } catch (error) {
       console.error("Error searching docs:", error);
       return [];
@@ -669,16 +657,8 @@ export class BrainService {
     if (!this.ensureConnection()) return [];
 
     try {
-      const likePattern = `%${query}%`;
-      return this.query<Pitfall>(
-        `
-        SELECT * FROM pitfalls
-        WHERE symptom LIKE ? OR solution LIKE ? OR error LIKE ? OR library LIKE ?
-        ORDER BY count DESC
-        LIMIT 10
-      `,
-        [likePattern, likePattern, likePattern, likePattern],
-      );
+      const { sql, sqlParams } = buildSearchPitfallsQuery(query);
+      return this.query<Pitfall>(sql, sqlParams);
     } catch (error) {
       console.error("Error searching pitfalls:", error);
       return [];
@@ -735,30 +715,12 @@ export class BrainService {
     }
   }
 
-  public searchTemplates(query: string, framework?: string, language?: string): Template[] {
+  public searchTemplates(query: string, framework?: string, type?: string): Template[] {
     if (!this.ensureConnection()) return [];
 
     try {
-      const likePattern = `%${query}%`;
-      let sql = `
-        SELECT * FROM templates
-        WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)
-      `;
-      const params: SqlParams = [likePattern, likePattern, likePattern];
-
-      if (framework) {
-        sql += " AND framework = ?";
-        params.push(framework);
-      }
-
-      if (language) {
-        sql += " AND language = ?";
-        params.push(language);
-      }
-
-      sql += " ORDER BY usage_count DESC, created_at DESC LIMIT 20";
-
-      return this.query<Template>(sql, params);
+      const { sql, sqlParams } = buildSearchTemplatesQuery(query, framework, type);
+      return this.query<Template>(sql, sqlParams);
     } catch (error) {
       console.error("Error searching templates:", error);
       return [];

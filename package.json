@@ -2,7 +2,7 @@
   "name": "whytcard-brain",
   "displayName": "WhytCard Brain",
   "description": "Local knowledge base for GitHub Copilot - Store instructions, documentation, and project context for AI-assisted development",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "publisher": "whytcard",
   "license": "MIT",
   "repository": {
@@ -860,7 +860,7 @@
             "moderate",
             "strict"
           ],
-          "default": "moderate",
+          "default": "strict",
           "enumDescriptions": [
             "AI can respond without consulting Brain (not recommended)",
             "AI must consult Brain but can use training data if nothing found",

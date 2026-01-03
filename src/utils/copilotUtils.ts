@@ -68,13 +68,22 @@ function buildInstructionsFromConfig(
       consultRule: "Call `{tool}brainConsult` before planning, coding, or answering.",
       consultRuleOff: "Consider calling `{tool}brainConsult` to check local knowledge.",
       consultFallback:
-        "If Brain is missing/incomplete: fetch OFFICIAL documentation, then store it using `{tool}brainSave`.",
+        "If Brain is missing/incomplete: you MUST fetch OFFICIAL documentation using Context7 (`mcp1_query-docs`) or Tavily (`mcp4_tavily_search`), then store it using `{tool}brainSave` with the source URL.",
+      neverCodeWithoutDoc:
+        "**⛔ BLOCKING RULE: You are FORBIDDEN from writing ANY code until you have imported the LATEST official documentation of the relevant stack into Brain.** Use Context7 or Tavily to fetch it, then `{tool}brainSave` with URL. NO EXCEPTIONS.",
+      mandatoryFlow:
+        "**Mandatory flow: 1) brainConsult → 2) If missing: Context7/Tavily → 3) brainSave with URL → 4) ONLY THEN proceed with task.**",
       zeroHallucinationTitle: "ZERO HALLUCINATION POLICY",
       zeroHallucinationRule: "NEVER guess or rely on outdated training data. ALWAYS verify facts.",
       zeroHallucinationStrict:
         'If you cannot find official documentation, state clearly: "I cannot find official documentation for this."',
       zeroHallucinationModerate:
         "If local docs are missing, you may use training data but clearly indicate uncertainty.",
+      contextTitle: "PROJECT CONTEXT",
+      contextRule:
+        "Maintain project context up-to-date. After architectural decisions, save them with `{tool}brainSave` (category='project').",
+      contextSessionRule:
+        "At the end of each work session, log progress with `{tool}brainSession`.",
       saveTitle: "CONTINUOUS LEARNING",
       saveRuleAlways: "When you find new useful info, save it immediately using `{tool}brainSave`.",
       saveRuleAsk:
@@ -98,7 +107,11 @@ function buildInstructionsFromConfig(
       consultRuleOff:
         "Considère appeler `{tool}brainConsult` pour vérifier les connaissances locales.",
       consultFallback:
-        "Si Brain est incomplet : cherche la documentation OFFICIELLE, puis stocke-la avec `{tool}brainSave`.",
+        "Si Brain est incomplet : tu DOIS chercher la documentation OFFICIELLE avec Context7 (`mcp1_query-docs`) ou Tavily (`mcp4_tavily_search`), puis la stocker avec `{tool}brainSave` avec l'URL source.",
+      neverCodeWithoutDoc:
+        "**⛔ RÈGLE BLOQUANTE : Il t'est INTERDIT d'écrire du code tant que tu n'as pas importé la documentation officielle DERNIÈRE VERSION de la stack dans Brain.** Utilise Context7 ou Tavily pour la récupérer, puis `{tool}brainSave` avec URL. AUCUNE EXCEPTION.",
+      mandatoryFlow:
+        "**Flow obligatoire : 1) brainConsult → 2) Si manquant : Context7/Tavily → 3) brainSave avec URL → 4) SEULEMENT ENSUITE procéder à la tâche.**",
       zeroHallucinationTitle: "POLITIQUE ZÉRO HALLUCINATION",
       zeroHallucinationRule:
         "Ne JAMAIS deviner ou utiliser des données d'entraînement obsolètes. TOUJOURS vérifier les faits.",
@@ -106,6 +119,11 @@ function buildInstructionsFromConfig(
         'Si tu ne trouves pas de documentation officielle, dis clairement : "Je ne trouve pas de documentation officielle pour cela."',
       zeroHallucinationModerate:
         "Si les docs locales manquent, tu peux utiliser tes connaissances mais indique clairement l'incertitude.",
+      contextTitle: "CONTEXTE PROJET",
+      contextRule:
+        "Maintiens le contexte projet à jour. Après des décisions architecturales, sauvegarde-les avec `{tool}brainSave` (category='project').",
+      contextSessionRule:
+        "À la fin de chaque session de travail, enregistre la progression avec `{tool}brainSession`.",
       saveTitle: "APPRENTISSAGE CONTINU",
       saveRuleAlways:
         "Quand tu trouves une info utile, sauvegarde-la immédiatement avec `{tool}brainSave`.",
@@ -197,6 +215,9 @@ function buildInstructionsFromConfig(
       if (!isMinimal) {
         lines.push(`- ${replace(t.consultFallback)}`);
       }
+      // Always include the blocking rule and mandatory flow in strict/moderate mode
+      lines.push(`- ${replace(t.neverCodeWithoutDoc)}`);
+      lines.push(`- ${replace(t.mandatoryFlow)}`);
     }
     lines.push("");
   }
@@ -213,9 +234,15 @@ function buildInstructionsFromConfig(
     lines.push("");
   }
 
-  // 3. Continuous Learning
+  // 3. Project Context (always enabled)
+  lines.push(`## 3. ${t.contextTitle}`);
+  lines.push(`- ${replace(t.contextRule)}`);
+  lines.push(`- ${replace(t.contextSessionRule)}`);
+  lines.push("");
+
+  // 4. Continuous Learning
   if (config.enabledTools.storeDoc || config.enabledTools.storePitfall) {
-    lines.push(`## 3. ${t.saveTitle}`);
+    lines.push(`## 4. ${t.saveTitle}`);
     if (config.enabledTools.storeDoc) {
       if (config.autoSave === "always") {
         lines.push(`- ${replace(t.saveRuleAlways)}`);
@@ -234,15 +261,15 @@ function buildInstructionsFromConfig(
     lines.push("");
   }
 
-  // 4. Templates
+  // 5. Templates
   if (config.autoSaveTemplates && config.enabledTools.templateSave) {
-    lines.push(`## 4. ${t.templateTitle}`);
+    lines.push(`## 5. ${t.templateTitle}`);
     lines.push(`- ${replace(t.templateRule)}`);
     lines.push("");
   }
 
-  // 5. Proof-based
-  lines.push(`## 5. ${t.proofTitle}`);
+  // 6. Proof-based
+  lines.push(`## 6. ${t.proofTitle}`);
   lines.push(`- ${t.proofRule}`);
   if (config.strictMode === "strict") {
     lines.push(`- ${t.proofRuleStrict}`);

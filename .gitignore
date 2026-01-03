@@ -9,6 +9,7 @@ Release/*.vsix
 Release/*.zip
 mcp-smoke-stdout.txt
 mcp-smoke-stderr.txt
+REPORT_MCP_ANALYSIS.md
 
 # Local databases / outputs
 *.db

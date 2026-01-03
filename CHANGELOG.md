@@ -2,6 +2,18 @@
 
 All notable changes to WhytCard Brain will be documented in this file.
 
+## [1.1.4] - 2026-01-03
+
+### Changed
+
+- Default `strictMode` is now `strict` to enforce the "no answer without official sources" workflow out-of-the-box.
+- VS Code LM tools: allow bootstrapping by saving the first official doc after a fresh consult (prevents a deadlock when Brain is empty).
+- Docs cleanup: updated README and setup docs for accurate Marketplace/VSIX installation and MCP setup.
+
+### Fixed
+
+- Strict consult now returns an explicit "policy blocked" message when Brain has no relevant docs with source URLs.
+
 ## [1.1.2] - 2024-12-25
 
 ### Added

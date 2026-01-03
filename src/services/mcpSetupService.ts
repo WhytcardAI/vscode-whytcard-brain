@@ -253,6 +253,10 @@ export class McpSetupService {
       }
 
       // Ajouter la configuration WhytCard Brain
+      const strictMode = vscode.workspace
+        .getConfiguration("whytcard-brain")
+        .get<string>("strictMode", "moderate");
+      const isStrict = strictMode === "strict";
       config.mcpServers["whytcard-brain"] = {
         command: nodePath,
         args: [mcpServerPath],
@@ -260,8 +264,8 @@ export class McpSetupService {
           BRAIN_DB_PATH: this.getDbPath(),
           BRAIN_REQUIRE_CONSULT: "1",
           BRAIN_CONSULT_TTL_MS: "1200000",
-          BRAIN_STRICT_MODE: "1",
-          BRAIN_STRICT_REQUIRE_SOURCES: "1",
+          BRAIN_STRICT_MODE: isStrict ? "1" : "0",
+          BRAIN_STRICT_REQUIRE_SOURCES: isStrict ? "1" : "0",
         },
         alwaysAllow: [
           "brainConsult",
